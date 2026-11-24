@@ -5,7 +5,7 @@ name: Website
 
 on:
   push:
-    branches: [main]
+    branches: [master, main]
   workflow_dispatch:
 
 permissions:
@@ -20,6 +20,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: smartbin-sim
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -32,7 +35,7 @@ jobs:
         run: python tools/build_web.py --out site
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: smartbin-sim/site
 
   deploy:
     needs: build

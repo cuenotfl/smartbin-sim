@@ -7,6 +7,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: smartbin-sim
     strategy:
       matrix:
         python: ["3.8", "3.12"]
@@ -26,13 +29,13 @@ jobs:
         if: always()
         with:
           name: sim-report-py${{ matrix.python }}
-          path: report.json
+          path: smartbin-sim/report.json
 
   firmware:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: firmware
+        working-directory: smartbin-sim/firmware
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -41,7 +44,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.platformio
-          key: pio-${{ hashFiles('firmware/platformio.ini') }}
+          key: pio-${{ hashFiles('smartbin-sim/firmware/platformio.ini') }}
       - run: pip install platformio
       - name: Protocol contract + state machine on the host
         run: pio test -e native

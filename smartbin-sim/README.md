@@ -91,8 +91,8 @@ python -m http.server -d site 8000        # lokal testen: http://127.0.0.1:8000
 ```
 
 `site/` kann auf jedem statischen Hosting liegen. Für GitHub Pages ist der Workflow
-`.github/workflows/pages.yml` vorbereitet (einmalig: Settings → Pages → Source «GitHub Actions»);
-er testet, baut und veröffentlicht bei jedem Push auf `main`. Die Konfiguration lässt sich auf
+`.github/workflows/pages.yml` (im Wurzelverzeichnis des Repos) vorbereitet (einmalig: Settings → Pages → Source «GitHub Actions»);
+er testet, baut und veröffentlicht bei jedem Push auf `master`. Die Konfiguration lässt sich auf
 der Seite oben links wählen oder per Link teilen, z. B. `…/?config=config/station-3.yaml`.
 Erster Aufruf: ca. 10–30 s Ladezeit (Python wird einmalig geladen, danach aus dem Cache).
 
