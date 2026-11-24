@@ -1,0 +1,11 @@
+# Firmware test in Wokwi (firmware/README.md): PET | ALU | REST, but only the
+# middle module exists - the ESP32 simulated in Wokwi (MODULE_ID=2).
+# Modules without port are not connected; with neighbour_bin the ALU module
+# can still tilt LINKS (PET) and RECHTS (REST), so every path is testable.
+station:
+  confidence_threshold: 0.6
+  routing: neighbour_bin
+  modules:
+    - {id: 1, fraction: PET,  position: 0}
+    - {id: 2, fraction: ALU,  position: 1, port: "rfc2217://localhost:4000"}
+    - {id: 3, fraction: REST, position: 2}

@@ -1,2 +1,4 @@
 -r requirements.txt
+-r requirements-dashboard.txt
 pytest>=7.0
+httpx>=0.23

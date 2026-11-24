@@ -29,10 +29,13 @@ RESULT: PASS
 | --- | --- | --- |
 | `smartbin/core/` | Fachlicher Kern: Modell, Ports, Fehlwurf-Entscheid, Einwurf-Ablauf | Jetson (unverändert) |
 | `smartbin/adapters/` | Protokoll, Serial-Gateway, SQLite, Konfiguration, ONNX-Klassifikator | Jetson (unverändert) |
-| `smartbin/app.py` | Startpunkt für die echte Hardware | Jetson |
+| `smartbin/app.py` | Startpunkt für die echte Hardware, inkl. Dashboard | Jetson |
+| `smartbin/adapters/dashboard.py` | Dashboard für den Hausdienst (ADR-005) | Jetson |
+| `firmware/` | ESP32-CAM-Firmware (C++, PlatformIO) + Wokwi-Simulation, siehe `firmware/README.md` | ESP32 |
 | `sim/` | Simulierte Station: ESP32-Zwilling, Serial-Leitungen, Physik, Nutzer:innen, Bericht | nur Laptop/CI |
 | `tests/` | Unit-, Vertrags- (Protokoll) und Szenario-Tests | Laptop/CI |
 | `tools/evaluate_model.py` | Prüft ein trainiertes Modell gegen das Testset (MUSS-01) | Laptop/CI |
+| `tools/wokwi_station.py` | Jetson-Software gegen die in Wokwi simulierte Firmware | Laptop |
 | `config/` | Stationskonfigurationen (2er, 3er, zwei Mechanik-Varianten) | beides |
 
 Der Kern kennt keine Technik (Ports and Adapters). In der Simulation werden nur die
@@ -49,6 +52,7 @@ python -m sim.run --set classifier_accuracy=0.85            # schlechteres Model
 python -m sim.run --set baud=115200 --set image_bytes=30000 # langsame Leitung, grössere Bilder
 python -m sim.run --set corrupt_rate=0.02                   # 2 % gestörte Frames
 python -m sim.run --csv statistik.csv                       # Statistik wie fürs Facility Management
+python -m sim.run --db demo.db                              # Statistik als SQLite, z. B. fürs Dashboard
 python -m sim.run -v                                        # Log jedes Vorgangs
 ```
 
@@ -68,8 +72,16 @@ Gleicher `--seed` = exakt gleicher Ablauf.
 4. **Bekannte Grenze:** Landet eine Weitergabe genau dann auf einer Klappe, wenn jemand in diese
    Öffnung wirft, hält der PIR sie für einen neuen Einwurf. Der Gegenstand landet trotzdem
    richtig, die Statistik zählt den Vorgang aber als abgebrochen (~1 %).
+5. **HELLO muss wiederholt werden.** Ging HELLO oder CONFIG verloren (oder startete der Jetson
+   nach dem Modul), blieb das Modul für immer in INIT. Jetzt wiederholt es HELLO jede Sekunde,
+   bis CONFIG kommt (Simulation und Firmware, Protokoll unverändert). Weitere Punkte aus der
+   Firmware (Gegenstand-Sensor, Endschalter, Verhalten in STOERUNG): `firmware/README.md`.
 
 ## Echtes Modell (sobald Fotos da sind)
+
+Die Bilderkennung entsteht separat. Für diese Software ist sie nur die Schnittstelle
+`ClassifierPort` (`smartbin/core/ports.py`): Bild rein, PET / ALU / REST (oder UNBEKANNT) plus
+Konfidenz raus. Liefert sie ein `.onnx`, passt der vorhandene `OnnxClassifier`; prüfen mit:
 
 ```bash
 pip install -r requirements-ml.txt
@@ -77,6 +89,20 @@ python tools/evaluate_model.py --model model.onnx --testset testset --labels ALU
 ```
 
 Das gleiche `.onnx` läuft später auf dem Jetson (optional als TensorRT-Engine).
+
+## Dashboard für den Hausdienst
+
+Läuft mit `smartbin.app` auf dem Jetson mit (Port 8080): Einwürfe pro Tag und Fraktion,
+CSV-Download, Reset-Knopf für Module in STOERUNG. Ohne Station, nur lesend:
+
+```bash
+pip install -r requirements-dashboard.txt
+python -m sim.run --throws 1000 --db demo.db
+python -m smartbin.adapters.dashboard --db demo.db    # http://127.0.0.1:8080
+```
+
+Das Dashboard hat **kein Login**. Standardmässig nur auf `127.0.0.1`; für Zugriff im Netz
+(`--dashboard-host`) braucht es vorher eine Absicherung (offener Punkt).
 
 ## Arbeiten mit KI
 

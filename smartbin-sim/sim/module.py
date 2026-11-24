@@ -86,6 +86,9 @@ class SimModule:
         seq, result = self.last_done
         self._send(p.MsgType.HEARTBEAT, 0,
                    bytes([int(code)]) + seq.to_bytes(2, "little") + bytes([result]))
+        if self.state == State.INIT and self.sim.now >= self.params.boot_s:
+            # repeat HELLO until CONFIG arrives (lost HELLO/CONFIG, Jetson started later)
+            self._send(p.MsgType.HELLO, 0, bytes([self.module_id, 1, 0, p.PROTOCOL_VERSION]))
         configured = self.state != State.INIT
         silent = self.sim.now - self.last_hb_rx > self.params.heartbeat_timeout_s
         if configured and silent and self.state != State.STOERUNG:

@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "author": "Smart Bin",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-pir-motion-sensor", "id": "pir", "top": -140, "left": -130, "attrs": { "delayTime": "2" } },
+    { "type": "wokwi-pushbutton", "id": "btnItem", "top": 220, "left": -170, "attrs": { "color": "green", "label": "Einwurf", "bounce": "0" } },
+    { "type": "wokwi-pushbutton", "id": "btnTake", "top": 290, "left": -170, "attrs": { "color": "blue", "label": "Entnehmen", "bounce": "0" } },
+    { "type": "wokwi-slide-switch", "id": "swJam", "top": 230, "left": 200, "attrs": { "value": "0" } },
+    { "type": "wokwi-servo", "id": "servo", "top": -150, "left": 180, "attrs": { "horn": "single" } },
+    { "type": "wokwi-neopixel", "id": "led", "top": -40, "left": 200, "attrs": {} }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "pir:VCC", "esp:5V", "red", [] ],
+    [ "pir:GND", "esp:GND.1", "black", [] ],
+    [ "pir:OUT", "esp:13", "orange", [] ],
+    [ "btnItem:1.l", "esp:15", "green", [] ],
+    [ "btnItem:2.l", "esp:GND.1", "black", [] ],
+    [ "btnTake:1.l", "esp:4", "blue", [] ],
+    [ "btnTake:2.l", "esp:GND.1", "black", [] ],
+    [ "swJam:2", "esp:26", "violet", [] ],
+    [ "swJam:1", "esp:GND.2", "black", [] ],
+    [ "servo:PWM", "esp:14", "orange", [] ],
+    [ "servo:V+", "esp:5V", "red", [] ],
+    [ "servo:GND", "esp:GND.2", "black", [] ],
+    [ "led:DIN", "esp:2", "green", [] ],
+    [ "led:VDD", "esp:5V", "red", [] ],
+    [ "led:VSS", "esp:GND.2", "black", [] ]
+  ],
+  "dependencies": {}
+}

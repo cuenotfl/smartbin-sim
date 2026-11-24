@@ -1,0 +1,3 @@
+# Dashboard for the Hausdienst (ADR-005), runs on the Jetson next to the core.
+fastapi>=0.68
+uvicorn>=0.15

@@ -25,6 +25,20 @@ def build_params(raw: dict, seed: int) -> SimParams:
     return params
 
 
+def export_db(st: PhysicalStation, path: str) -> int:
+    """Copy the simulated statistics into a database file, shifted so the
+    simulated day ends now (demo data for the dashboard)."""
+    import time
+    from smartbin.adapters.sqlite_store import SqliteEventStore
+    events = st.store.all()
+    offset = time.time() - st.sim.now
+    out = SqliteEventStore(path)
+    for e in events:
+        out.save(dataclasses.replace(e, timestamp=e.timestamp + offset))
+    out.close()
+    return len(events)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Smart Bin station simulation")
     ap.add_argument("--config", default="config/station-3-via-flaps.yaml")
@@ -34,6 +48,8 @@ def main(argv=None) -> int:
                     help="override a simulation parameter, e.g. --set classifier_accuracy=0.85")
     ap.add_argument("--csv", help="export the core statistics as CSV")
     ap.add_argument("--json", help="write the report as JSON")
+    ap.add_argument("--db", help="append the statistics to a SQLite file (sim time mapped to"
+                    " the last hours before now), e.g. to try the dashboard")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
@@ -58,6 +74,9 @@ def main(argv=None) -> int:
     if args.csv:
         n = st.store.export_csv(args.csv, iso_time=False)
         print("CSV: %d rows -> %s" % (n, args.csv))
+    if args.db:
+        n = export_db(st, args.db)
+        print("DB: %d rows -> %s" % (n, args.db))
     if args.json:
         with open(args.json, "w", encoding="utf-8") as fh:
             json.dump(dataclasses.asdict(report), fh, indent=2)

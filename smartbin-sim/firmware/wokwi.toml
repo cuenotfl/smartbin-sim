@@ -1,0 +1,8 @@
+# Wokwi for VS Code / wokwi-cli. Build first: pio run -e wokwi
+[wokwi]
+version = 1
+firmware = ".pio/build/wokwi/firmware.bin"
+elf = ".pio/build/wokwi/firmware.elf"
+# UART0 (the protocol) as TCP port: the Jetson software connects with
+# port: rfc2217://localhost:4000 (see config/station-wokwi.yaml)
+rfc2217ServerPort = 4000

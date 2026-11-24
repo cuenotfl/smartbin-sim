@@ -130,3 +130,27 @@ def test_random_day_shows_neighbour_bin_misses_muss_02(config_path):
     from sim.run import main
     assert main(["--config", config_path("station-3.yaml"),
                  "--throws", "1000", "--seed", "7"]) == 1
+
+
+def test_lost_hello_is_repeated_until_config_arrives():
+    """A module whose HELLO gets lost (or whose Jetson starts later) must not
+    stay in INIT forever: it repeats HELLO with every heartbeat while in INIT."""
+    from sim.station import PhysicalStation
+    from tests.conftest import ideal_params, station_config
+    st = PhysicalStation(station_config(), ideal_params())
+    mod = st.modules[1]
+    real_write, dropped = mod.uplink.write, []
+
+    def drop_first_frame(data):
+        if not dropped:
+            dropped.append(data)
+            return
+        real_write(data)
+    mod.uplink.write = drop_first_frame
+    st.run(3.0)
+    assert dropped and dropped[0][1] == 0x01          # the HELLO was the frame lost
+    assert mod.state == State.BEREIT
+    item = Item(1, Fraction.PET)
+    st.throw(item, 1)
+    st.run(10)
+    assert item.final == "BIN:PET"
