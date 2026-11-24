@@ -5,7 +5,7 @@ time) run in a few seconds and every run with the same seed is identical.
 """
 import heapq
 import itertools
-from typing import Any, Callable, List, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 
 class Sim:
@@ -13,6 +13,7 @@ class Sim:
         self.now = 0.0
         self._queue: List[Tuple[float, int, Callable[..., Any], tuple]] = []
         self._counter = itertools.count()
+        self.on_step: Optional[Callable[[], None]] = None  # observer, e.g. sim/trace.py
 
     def at(self, t: float, fn: Callable[..., Any], *args: Any) -> None:
         heapq.heappush(self._queue, (max(t, self.now), next(self._counter), fn, args))
@@ -31,4 +32,6 @@ class Sim:
             t, _, fn, args = heapq.heappop(self._queue)
             self.now = t
             fn(*args)
+            if self.on_step is not None:
+                self.on_step()
         self.now = t_end

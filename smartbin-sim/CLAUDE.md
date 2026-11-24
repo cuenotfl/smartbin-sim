@@ -15,6 +15,8 @@ python -m pytest -q                                   # must stay green
 python -m sim.run --throws 1000 --seed 42             # must print RESULT: PASS
 python -m sim.run --throws 1000 --seed 42 --set corrupt_rate=0.02   # must PASS
 python -m sim.run -v --throws 20                      # per-Vorgang log for debugging
+python -m sim.live --open                             # interactive 3D view, manual throws
+python tools/build_web.py                             # static website -> site/ (Pyodide)
 ```
 
 Run all three before you report a change as done. CI runs the same.
@@ -46,6 +48,10 @@ Run all three before you report a change as done. CI runs the same.
 8. **Python >= 3.8** (the Jetson Nano image is old). No `match`, no `X | Y` types,
    no `list[int]` at runtime. `vermin --target=3.8- smartbin sim tests tools` must pass.
 
+9. **The website runs this code in Pyodide.** Everything `sim.web` imports must stay
+   pure Python (stdlib + PyYAML + sqlite3); no threads or sockets on that path.
+   One viewer (`sim/viewer.html`) serves both the local server and the website.
+
 ## Vocabulary (use these names in code and messages)
 
 Fraktion (PET/ALU/REST), Einwurf, Vorgang (one item, id "<module>-<seq>"),
@@ -65,6 +71,8 @@ Routing variants: `neighbour_bin` (flap drops into neighbour's bin) and `via_fla
 | Physics, users, Jetson latency | `sim/station.py` |
 | What counts as PASS | `sim/report.py` (mirrors MUSS-01..03 of the project brief) |
 | Station layouts | `config/*.yaml` |
+| 3D view: recorded events, server, browser page | `sim/trace.py`, `sim/live.py`, `sim/viewer.html` |
+| Website (same viewer, Python in the browser) | `sim/web.py`, `web/worker.js`, `tools/build_web.py` |
 
 ## How to work
 

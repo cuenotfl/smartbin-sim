@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Smart Bin – 3D-Simulation</title>
+<style>
+:root{--panel:#f8f9fa;--line:#d0d5db;--text:#1f2328;--muted:#6b7280;--accent:#e8590c;--ok:#2f9e44;--bad:#e03131;--warn:#f08c00}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font:13px/1.4 "Segoe UI",system-ui,Arial,sans-serif;color:var(--text);overflow:hidden}
+#app{display:grid;grid-template-columns:250px 1fr 330px;grid-template-rows:44px 1fr 150px;height:100vh}
+header{grid-column:1/4;display:flex;align-items:center;gap:10px;padding:0 12px;background:#2b3035;color:#f1f3f5}
+header h1{font-size:15px;margin:0 8px 0 0;font-weight:600;white-space:nowrap}
+header .sp{flex:1}
+header .info{color:#adb5bd;font-size:12px;white-space:nowrap}
+#clock{font:600 14px ui-monospace,Consolas,monospace;min-width:84px;text-align:right}
+button,select{font:inherit;border:1px solid var(--line);background:#fff;color:var(--text);border-radius:5px;padding:4px 9px;cursor:pointer}
+button:hover{border-color:#868e96}
+header button,header select{background:#3a4047;color:#f1f3f5;border-color:#4b535b}
+header button.on{background:var(--accent);border-color:var(--accent)}
+header button.off{background:#c92a2a;border-color:#c92a2a}
+aside{background:var(--panel);overflow:auto;border-right:1px solid var(--line)}
+aside.right{border-right:0;border-left:1px solid var(--line);display:flex;flex-direction:column}
+aside.right>*{flex-shrink:0}
+h2{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:14px 12px 6px}
+#view{position:relative;background:linear-gradient(#fbfcfd,#cfd8e2);overflow:hidden}
+#view canvas{display:block}
+#labels{position:absolute;inset:0;pointer-events:none}
+.lbl{font:600 12px "Segoe UI",sans-serif;background:rgba(255,255,255,.85);border:1px solid var(--line);border-radius:4px;padding:2px 6px;text-align:center;white-space:nowrap}
+.lbl .st{display:block;font-size:10px;font-weight:700;color:#fff;border-radius:3px;margin-top:2px;padding:0 4px}
+#viewbar{position:absolute;left:10px;top:10px;display:flex;gap:4px}
+#viewbar button{padding:2px 8px;font-size:12px;background:rgba(255,255,255,.85)}
+#hint{position:absolute;left:10px;bottom:8px;color:#495057;font-size:12px;background:rgba(255,255,255,.7);padding:2px 6px;border-radius:4px}
+.tree{list-style:none;margin:0;padding:0 8px}
+.tree li{padding:5px 6px;border-radius:5px;margin-bottom:3px;background:#fff;border:1px solid #e9ecef}
+.tree .row{display:flex;align-items:center;gap:6px}
+.tree .name{font-weight:600;flex:1}
+.chip{font-size:10px;font-weight:700;color:#fff;border-radius:3px;padding:1px 5px}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;border:1px solid #0003}
+.sub{color:var(--muted);font-size:12px;margin-top:2px}
+.tree button{padding:1px 6px;font-size:11px}
+form{padding:0 12px}
+.seg{display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap}
+.seg button{flex:1;padding:5px 4px}
+.seg button.sel{background:#2b3035;color:#fff;border-color:#2b3035}
+label.f{display:block;color:var(--muted);font-size:12px;margin:6px 0 3px}
+input[type=range]{width:100%}
+.confrow{display:flex;align-items:center;gap:8px}
+.confrow output{font:600 13px ui-monospace,Consolas,monospace;width:38px;text-align:right}
+#confnote{font-size:11px;color:var(--muted);min-height:15px}
+#confnote.low{color:var(--warn);font-weight:600}
+.chk{display:flex;align-items:center;gap:6px;margin:6px 0;font-size:12px}
+#throwBtn{width:100%;padding:8px;margin-top:6px;background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+#throwBtn:hover{filter:brightness(1.07)}
+#insp{margin:0 12px;background:#fff;border:1px solid #e9ecef;border-radius:6px;padding:8px;font-size:12px;min-height:60px}
+#insp table{width:100%;border-collapse:collapse}
+#insp td{padding:1px 0;vertical-align:top}
+#insp td:first-child{color:var(--muted);width:46%}
+#insp .route{margin-top:4px;color:#495057;max-height:90px;overflow:auto}
+#log{flex:1 1 auto;flex-shrink:1;overflow:auto;margin:0 0 8px;padding:0 12px;font:11.5px/1.45 ui-monospace,Consolas,monospace;min-height:80px}
+#log div{border-bottom:1px solid #eef0f2;padding:1px 0;cursor:pointer}
+#log .t{color:var(--muted);margin-right:6px}
+#log .throw{color:#1c7ed6;font-weight:600}
+#log .fault{color:var(--bad);font-weight:600}
+#log .bin{color:var(--ok)}
+#log .bad{color:var(--warn)}
+#log .frame{color:#495057}
+#log .corrupt{color:var(--bad);text-decoration:line-through}
+.logopts{display:flex;gap:10px;padding:0 12px 4px;font-size:11px;color:var(--muted)}
+footer{grid-column:1/4;border-top:1px solid var(--line);background:#fff;position:relative}
+#gantt{width:100%;height:100%;display:block}
+#modal{position:fixed;inset:0;background:#0006;display:none;align-items:center;justify-content:center;z-index:10}
+#modal .box{background:#fff;border-radius:8px;padding:16px 18px;max-width:780px;max-height:85vh;overflow:auto;box-shadow:0 10px 40px #0005}
+#modal pre{font:12px/1.45 ui-monospace,Consolas,monospace;margin:8px 0}
+#loading{position:fixed;inset:0;background:linear-gradient(#fbfcfd,#cfd8e2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:20;font-size:14px;color:#343a40}
+#loading .spin{width:38px;height:38px;border:4px solid #ced4da;border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loading small{color:var(--muted);max-width:460px;text-align:center}
+#cfgSel{display:none;max-width:230px}
+#about .box{max-width:620px;line-height:1.5}
+#about h3{margin:0 0 6px}
+#about ul{padding-left:18px;margin:6px 0}
+#offline{position:absolute;right:10px;top:10px;background:var(--bad);color:#fff;padding:4px 8px;border-radius:4px;display:none}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+"three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Smart Bin · 3D-Simulation</h1>
+    <select id="cfgSel" title="Stationskonfiguration"></select>
+    <span class="info" id="cfgInfo"></span>
+    <span class="sp"></span>
+    <span id="clock">0.0 s</span>
+    <button id="playBtn" title="Leertaste">⏸ Pause</button>
+    <select id="speedSel" title="Zeitraffer">
+      <option value="0.1">0.1×</option><option value="0.25">0.25×</option><option value="0.5">0.5×</option>
+      <option value="1" selected>1×</option><option value="2">2×</option><option value="5">5×</option>
+      <option value="10">10×</option><option value="30">30×</option>
+    </select>
+    <button id="randBtn" title="Zufällige Nutzer:innen werfen ein (Modellgenauigkeit aus der Konfiguration)">Zufällige Nutzer: aus</button>
+    <button id="jetsonBtn" title="Jetson ausfallen lassen: Module gehen nach 3 s in STOERUNG">Jetson: an</button>
+    <button id="reportBtn">Bericht</button>
+    <button id="aboutBtn" title="Worum geht es?">?</button>
+    <button id="restartBtn" title="Station neu starten, Statistik leeren">Neustart</button>
+  </header>
+
+  <aside>
+    <h2>Station</h2>
+    <ul class="tree" id="tree"></ul>
+    <h2>Behälter</h2>
+    <ul class="tree" id="bins"></ul>
+  </aside>
+
+  <div id="view">
+    <div id="labels"></div>
+    <div id="viewbar">
+      <button data-view="iso">Iso</button><button data-view="front">Vorne</button>
+      <button data-view="top">Oben</button><button data-view="side">Seite</button>
+      <button id="followBtn" title="Kamera folgt dem gewählten Gegenstand">Folgen</button>
+    </div>
+    <div id="offline">Keine Verbindung zur Simulation</div>
+    <div id="hint">Öffnung anklicken = auswählen · Doppelklick = einwerfen · Gegenstand anklicken = Vorgang · Maus: drehen / Rechts: schieben / Rad: zoomen</div>
+  </div>
+
+  <aside class="right">
+    <h2>Einwurf (Eingabe statt Kamera)</h2>
+    <form id="throwForm" onsubmit="return false">
+      <label class="f">Öffnung (gewählt)</label>
+      <div class="seg" id="segModule"></div>
+      <label class="f">Klassifikator meldet (erkannt)</label>
+      <div class="seg" id="segDetected"></div>
+      <label class="f">Konfidenz</label>
+      <div class="confrow"><input type="range" id="conf" min="0" max="1" step="0.01" value="0.9"><output id="confOut">0.90</output></div>
+      <div id="confnote"></div>
+      <label class="f">Tatsächlich (Wahrheit, für die Auswertung)</label>
+      <div class="seg" id="segTrue"></div>
+      <label class="chk"><input type="checkbox" id="linger"> Hand bleibt in der Öffnung (PIR, Sicherheitsstopp)</label>
+      <button id="throwBtn" type="submit">Einwerfen ⏎</button>
+    </form>
+    <h2>Vorgang</h2>
+    <div id="insp"><span style="color:var(--muted)">Noch kein Einwurf.</span></div>
+    <h2>Ereignisse</h2>
+    <div class="logopts">
+      <label><input type="checkbox" id="logFrames" checked> Frames</label>
+      <label><input type="checkbox" id="logStates"> Zustände</label>
+    </div>
+    <div id="log"></div>
+  </aside>
+
+  <footer><canvas id="gantt"></canvas></footer>
+</div>
+<div id="loading"><div class="spin"></div><div id="loadText">Simulation wird geladen …</div>
+  <small>Die echte Smart-Bin-Software (Python) läuft direkt in deinem Browser. Beim ersten Besuch werden dafür einige MB geladen.</small></div>
+<div id="about" style="position:fixed;inset:0;background:#0006;display:none;align-items:center;justify-content:center;z-index:10"><div class="box" style="background:#fff;border-radius:8px;padding:18px 20px;box-shadow:0 10px 40px #0005">
+  <h3>Smart Bin · 3D-Simulation</h3>
+  Eine Nachrüstung für Recyclingstationen (PET | ALU | REST): Eine Kamera erkennt jeden eingeworfenen Gegenstand,
+  eine LED meldet Fehlwürfe und eine kippbare Klappe lenkt den Gegenstand in den richtigen Behälter.
+  <ul>
+    <li><b>Einwerfen:</b> rechts Öffnung, Fraktion und Konfidenz wählen (so, wie es die Bilderkennung melden würde), dann <i>Einwerfen</i> oder Doppelklick auf eine Öffnung.</li>
+    <li><b>Konfidenz unter der Schwelle</b> → UNBEKANNT → Gegenstand geht in REST.</li>
+    <li><b>Hand bleibt in der Öffnung</b> → die Klappe wartet (Sicherheitsregel des ESP32).</li>
+    <li><b>Jetson: aus</b> → Module gehen nach 3 s in den sicheren Zustand (STOERUNG).</li>
+    <li>Oben links die <b>Konfiguration</b> wechseln: Klappe kippt in den Nachbarbehälter oder gibt von Klappe zu Klappe weiter.</li>
+  </ul>
+  Es läuft derselbe Code wie später auf dem Jetson Nano, inkl. Protokoll und Statistik; nur Kamera und Leitungen sind simuliert.
+  Es werden keine Daten gespeichert oder versendet.
+  <div style="margin-top:12px"><button id="closeAbout">Los geht's</button></div>
+</div></div>
+<div id="modal"><div class="box"><b>Bericht dieses Laufs</b> <small style="color:#6b7280">(MUSS-Kriterien aus sim/report.py)</small><pre id="reportText"></pre><button id="closeModal">Schliessen</button></div></div>
+
+<script id="station" type="application/json">__STATION_INFO__</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {CSS2DRenderer, CSS2DObject} from 'three/addons/renderers/CSS2DRenderer.js';
+
+// ------------------------------------------------------------------ constants
+// ------------------------------------------------------------------ backend
+// Served by `python -m sim.live`: the placeholder is replaced and we use HTTP.
+// Static website: the placeholder is still there and the Python core runs in
+// a web worker (web/worker.js, Pyodide).
+const PLACEHOLDER = '__STATION' + '_INFO__';
+const stationText = document.getElementById('station').textContent.trim();
+const backend = stationText === PLACEHOLDER ? workerBackend() : httpBackend();
+function httpBackend(){
+  return {web: false, init: async () => JSON.parse(stationText), call: async (op, args) => {
+    const r = op === 'poll' || op === 'report'
+      ? await fetch(`/api/${op}?` + new URLSearchParams(args || {}))
+      : await fetch('/api/' + op, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(args || {})});
+    return r.json();
+  }};
+}
+function workerBackend(){
+  const w = new Worker('worker.js'), pending = new Map(); let next = 1;
+  w.onmessage = e => {
+    const m = e.data;
+    if (m.progress) { document.getElementById('loadText').textContent = m.progress; return; }
+    const p = pending.get(m.id); if (!p) return; pending.delete(m.id);
+    m.error ? p.reject(new Error(m.error)) : p.resolve(m.result);
+  };
+  w.onerror = e => { document.getElementById('loadText').textContent = 'Fehler im Simulations-Worker: ' + (e.message || e); };
+  const call = (op, args) => new Promise((resolve, reject) => { const id = next++; pending.set(id, {resolve, reject}); w.postMessage({id, op, args}); });
+  const config = new URLSearchParams(location.search).get('config') || '';
+  return {web: true, call, init: () => call('init', {config})};
+}
+let S;
+try { S = await backend.init(); }
+catch (e) { document.getElementById('loadText').textContent = 'Simulation konnte nicht geladen werden: ' + e.message; throw e; }
+document.getElementById('loading').style.display = 'none';
+if (backend.web && !localStorage.getItem('smartbin-about-seen')) { document.getElementById('about').style.display = 'flex'; localStorage.setItem('smartbin-about-seen', '1'); }
+if (S.configs && S.configs.length) {
+  const sel = document.getElementById('cfgSel'); sel.style.display = 'inline-block';
+  const names = {'station-3-via-flaps': '3er · Weitergabe Klappe→Klappe', 'station-3': '3er · Klappe kippt in Nachbarbehälter', 'station-2': '2er-Station'};
+  sel.innerHTML = S.configs.map(c => { const k = c.replace(/^.*\//, '').replace('.yaml', ''); return `<option value="${c}">${names[k] || k}</option>`; }).join('');
+  sel.value = S.config;
+  sel.onchange = () => { const u = new URL(location.href); u.searchParams.set('config', sel.value); location.href = u.href; };
+}
+const N = S.modules.length;
+const P = 0.62, BIN_W = 0.5, BIN_H = 0.7, BIN_D = 0.46;
+const H_Y0 = 0.76, H_Y1 = 1.18, FLAP_Y = 0.86;
+const FR = {PET:0x2f80ed, ALU:0xaab4be, REST:0x5c5f66};
+const FR_CSS = {PET:'#2f80ed', ALU:'#8a96a3', REST:'#5c5f66', UNBEKANNT:'#f08c00'};
+const STATE_CSS = {INIT:'#adb5bd', BEREIT:'#2f9e44', ERKANNT:'#1c7ed6', WARTEN:'#7048e8', SORTIEREN:'#e8590c', STOERUNG:'#e03131'};
+const LED = {AUS:0x1a1a1a, OK:0x2bd94a, FEHLWURF:0xff2020, UNBEKANNT:0xffc400, STOERUNG:0xff0000};
+const FRAME_COL = {IMAGE:0x9c36b5, ITEM_DETECTED:0x15aabf, SORT:0xe8590c, SORT_DONE:0x2f9e44, SIGNAL:0xf59f00,
+                   FAULT:0xe03131, HEARTBEAT:0xadb5bd, HELLO:0x495057, CONFIG:0x495057, RESET_FAULT:0x1c7ed6};
+const OUT_TXT = {KORREKT:'korrekt', FEHLWURF_UMGELENKT:'Fehlwurf, umgelenkt', FEHLWURF_NICHT_UMLENKBAR:'Fehlwurf, nicht umlenkbar',
+                 UNBEKANNT:'unbekannt → REST', ABGEBROCHEN:'abgebrochen'};
+const modById = {}; S.modules.forEach(m => modById[m.id] = m);
+const modByFr = {}; S.modules.forEach(m => modByFr[m.fraction] = m);
+const xOf = pos => (pos - (N - 1) / 2) * P;
+document.getElementById('cfgInfo').textContent =
+  `${S.configs ? '' : S.config + ' · '}Routing ${S.routing} · Schwelle ${S.threshold.toFixed(2)} · ${S.params.baud} Baud`;
+
+// ------------------------------------------------------------------ live data (from /api/poll)
+const D = {epoch:null, next:0, now:0, recvAt:0, speed:1, paused:false, jetson:true, random:false,
+           mods:{}, items:new Map(), frames:[], infer:[], log:[], binCount:{}, binSlot:new Map(), lastThrown:null};
+function resetData(){
+  D.next = 0; D.items.clear(); D.frames = []; D.infer = []; D.log = []; D.binSlot.clear(); D.lastThrown = null;
+  for (const m of S.modules) { D.mods[m.id] = {states:[[0,'INIT']], leds:[[0,'AUS']], pir:[], motion:[], faults:[]}; D.binCount[m.fraction] = 0; }
+  for (const it of itemMeshes.values()) scene.remove(it); itemMeshes.clear();
+  renderT = 0; selected = null; logDirty = true;
+}
+function lastIdx(arr, t){ let lo=0, hi=arr.length-1, r=-1; while(lo<=hi){const m=(lo+hi)>>1; if(arr[m][0]<=t){r=m;lo=m+1}else hi=m-1;} return r; }
+const stepAt = (arr, t, def) => { const i = lastIdx(arr, t); return i < 0 ? def : arr[i][1]; };
+function flapAt(mid, t){
+  const segs = D.mods[mid].motion, i = lastIdx(segs, t);
+  if (i < 0) return {v:0, dir:'DIREKT'};
+  const [t0, t1, a, b, dir] = segs[i];
+  const v = t >= t1 ? b : a + (b - a) * (t - t0) / Math.max(1e-6, t1 - t0);
+  return {v, dir};
+}
+function pirAt(mid, t){ const p = D.mods[mid].pir; for (let k = lastIdx(p, t); k >= 0 && k > p.length - 8; k--) if (p[k][1] > t) return true; return false; }
+
+function ingest(ev){
+  const k = ev[0];
+  if (k === 'state') { D.mods[ev[2]].states.push([ev[1], ev[3]]); addLog(ev[1], 'state', `M${ev[2]} → ${ev[3]}`); }
+  else if (k === 'led') { D.mods[ev[2]].leds.push([ev[1], ev[3]]); if (ev[3] !== 'AUS') addLog(ev[1], ev[3]==='OK'?'bin':'bad', `M${ev[2]} LED ${ev[3]}`); }
+  else if (k === 'pir') D.mods[ev[2]].pir.push([ev[1], ev[3]]);
+  else if (k === 'motion') D.mods[ev[2]].motion.push([ev[1], ev[3], ev[4], ev[5], ev[6]]);
+  else if (k === 'infer') D.infer.push([ev[1], ev[2]]);
+  else if (k === 'fault') { D.mods[ev[2]].faults.push([ev[1], ev[3]]); addLog(ev[1], 'fault', `M${ev[2]} STOERUNG: ${ev[3]}`); }
+  else if (k === 'frame') {
+    const [, t0, t1, mid, dir, type, seq, info, bad] = ev;
+    D.frames.push({t0, t1, mid, up: dir === 'up', type, bad});
+    if (type !== 'HEARTBEAT') addLog(t0, bad ? 'frame corrupt' : 'frame',
+      `M${mid} ${dir === 'up' ? '→ Jetson' : '← Jetson'} ${type}${seq ? ' #' + seq : ''}${info ? ' ' + info : ''}${bad ? ' (gestört)' : ''}`);
+  }
+  else if (k === 'item') onItem(ev[1], ev[2]);
+}
+function onItem(t, snap){
+  const prev = D.items.get(snap.id);
+  if (!prev) {
+    const m = modById[snap.chosen], inp = snap.input || {};
+    const det = inp.detected ? ` · Eingabe ${inp.detected} ${(+inp.confidence).toFixed(2)}` : ' · zufällig';
+    addLog(snap.t_throw, 'throw', `Einwurf #${snap.id} ${snap.true} in M${m.id} (${m.fraction})${det}`, snap.id);
+    D.lastThrown = snap.id;
+    if (!selected || followSel) selected = snap.id;
+  }
+  for (const e of snap.path) if (e[1] === 'bin' && !D.binSlot.has(snap.id)) {
+    D.binSlot.set(snap.id, D.binCount[e[2]]++);
+    addLog(e[0], e[2] === snap.true ? 'bin' : 'bad', `#${snap.id} → Behälter ${e[2]} ${e[2] === snap.true ? '✓' : '✗ (ist ' + snap.true + ')'}`, snap.id);
+  }
+  if (snap.final === 'RETURNED' && !(prev && prev.final === 'RETURNED')) addLog(t, 'bad', `#${snap.id} gehalten (zurück an Nutzer:in)`, snap.id);
+  if (snap.outcome && !(prev && prev.outcome)) addLog(t, snap.outcome === 'KORREKT' ? 'bin' : 'bad', `Vorgang ${snap.vid}: ${OUT_TXT[snap.outcome] || snap.outcome}`, snap.id);
+  snap.plan = buildPlan(snap);
+  D.items.set(snap.id, snap);
+}
+function addLog(t, cls, text, item){ D.log.push({t, cls, text, item}); logDirty = true; }
+
+// item route -> animation segments
+const DROP = 0.45, RETURN = 0.9;
+function buildPlan(it){
+  const ev = it.path, plan = [];
+  for (let i = 0; i < ev.length; i++) {
+    const [t, kind, arg] = ev[i], nx = ev[i + 1];
+    if (kind === 'thrown') plan.push({t0: t - 0.25, t1: nx ? nx[0] : t + S.params.fall_s, type: 'fall', mod: arg});
+    else if (kind === 'flap') {
+      let tr = Infinity, after = null;
+      if (nx) {
+        if (nx[1] === 'flap') { tr = nx[0] - S.params.handover_s; after = {t0: tr, t1: nx[0], type: 'slide', from: arg, to: nx[2]}; }
+        else if (nx[1] === 'bin') { tr = nx[0]; after = {t0: tr, t1: tr + DROP, type: 'drop', from: arg, bin: nx[2]}; }
+        else if (nx[1] === 'returned') { tr = nx[0]; after = {t0: tr, t1: tr + RETURN, type: 'return', from: arg}; }
+      }
+      plan.push({t0: t, t1: tr, type: 'flap', mod: arg});
+      if (after) plan.push(after);
+    } else if (kind === 'bin') plan.push({t0: t + DROP, t1: Infinity, type: 'pile', bin: arg});
+  }
+  return plan;
+}
+
+// ------------------------------------------------------------------ scene
+const view = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+renderer.shadowMap.enabled = true;
+view.prepend(renderer.domElement);
+const labelR = new CSS2DRenderer({element: document.getElementById('labels')});
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, 1, 0.01, 50);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a9aae, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+sun.position.set(1.5, 3.5, 2.5); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, {left: -2, right: 2, top: 2, bottom: -2});
+scene.add(sun);
+const grid = new THREE.GridHelper(6, 60, 0x9aa5b1, 0xc3ccd6); scene.add(grid);
+const shadowFloor = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.ShadowMaterial({opacity: .18}));
+shadowFloor.rotation.x = -Math.PI / 2; shadowFloor.receiveShadow = true; scene.add(shadowFloor);
+// world axes like a CAD tool
+const axes = new THREE.AxesHelper(0.25); axes.position.set(xOf(0) - 0.5, 0.001, 0.45); scene.add(axes);
+
+const box = (w, h, d, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.castShadow = m.receiveShadow = true; return m; };
+const std = (color, o = {}) => new THREE.MeshStandardMaterial({color, roughness: .55, metalness: .1, ...o});
+const frameMat = std(0x868e96, {metalness: .6, roughness: .35});
+const glassMat = new THREE.MeshStandardMaterial({color: 0xdbe4ee, transparent: true, opacity: .14, depthWrite: false, side: THREE.DoubleSide});
+
+const M3 = {};        // per module 3D objects
+const openings = [];  // pick targets
+for (const m of S.modules) {
+  const x = xOf(m.position), g = new THREE.Group(); g.position.x = x; scene.add(g);
+  // bin: open box, glass front
+  const bm = std(FR[m.fraction]), t = 0.014;
+  const fl = box(BIN_W, t, BIN_D, bm); fl.position.y = t / 2; g.add(fl);
+  const bk = box(BIN_W, BIN_H, t, bm); bk.position.set(0, BIN_H / 2, -BIN_D / 2); g.add(bk);
+  for (const s of [-1, 1]) { const w = box(t, BIN_H, BIN_D, bm); w.position.set(s * BIN_W / 2, BIN_H / 2, 0); g.add(w); }
+  const fr = new THREE.Mesh(new THREE.PlaneGeometry(BIN_W, BIN_H), new THREE.MeshStandardMaterial({color: FR[m.fraction], transparent: true, opacity: .22, depthWrite: false}));
+  fr.position.set(0, BIN_H / 2, BIN_D / 2); g.add(fr);
+  // housing frame (aluminium profiles) + glass
+  const hh = H_Y1 - H_Y0, hy = (H_Y0 + H_Y1) / 2, pr = 0.02;
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const post = box(pr, hh, pr, frameMat); post.position.set(sx * (BIN_W / 2 - pr / 2), hy, sz * (BIN_D / 2 - pr / 2)); g.add(post); }
+  for (const y of [H_Y0, H_Y1]) for (const sz of [-1, 1]) { const r = box(BIN_W, pr, pr, frameMat); r.position.set(0, y, sz * (BIN_D / 2 - pr / 2)); g.add(r); }
+  for (const y of [H_Y0, H_Y1]) for (const sx of [-1, 1]) { const r = box(pr, pr, BIN_D, frameMat); r.position.set(sx * (BIN_W / 2 - pr / 2), y, 0); g.add(r); }
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(BIN_W, hh), glassMat); back.position.set(0, hy, -BIN_D / 2); g.add(back);
+  // top plate with opening
+  const topMat = std(0x343a40), ow = 0.3, od = 0.26;
+  const tA = box(BIN_W, 0.012, (BIN_D - od) / 2, topMat); tA.position.set(0, H_Y1 + 0.016, -(od / 2 + (BIN_D - od) / 4)); g.add(tA);
+  const tB = tA.clone(); tB.position.z *= -1; g.add(tB);
+  const tC = box((BIN_W - ow) / 2, 0.012, od, topMat); tC.position.set(-(ow / 2 + (BIN_W - ow) / 4), H_Y1 + 0.016, 0); g.add(tC);
+  const tD = tC.clone(); tD.position.x *= -1; g.add(tD);
+  const pick = new THREE.Mesh(new THREE.BoxGeometry(ow, 0.05, od), new THREE.MeshBasicMaterial({color: 0xe8590c, transparent: true, opacity: 0, depthWrite: false}));
+  pick.position.y = H_Y1 + 0.02; pick.userData.module = m.id; g.add(pick); openings.push(pick);
+  // flap on servo pivot
+  const pivot = new THREE.Group(); pivot.position.y = FLAP_Y; g.add(pivot);
+  const flap = box(0.4, 0.014, 0.36, std(0xf08c00, {roughness: .4})); pivot.add(flap);
+  const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.44), frameMat); axle.rotation.x = Math.PI / 2; g.add(axle); axle.position.y = FLAP_Y;
+  const servo = box(0.05, 0.04, 0.03, std(0x1c1c1c)); servo.position.set(0, FLAP_Y, -BIN_D / 2 + 0.03); g.add(servo);
+  // ESP32-CAM under the lid + flash cone while capturing
+  const cam = box(0.04, 0.012, 0.03, std(0x111111)); cam.position.set(0, H_Y1 - 0.02, -0.12); g.add(cam);
+  const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.01), std(0x333366, {metalness: .8})); lens.position.set(0, H_Y1 - 0.03, -0.12); g.add(lens);
+  const flash = new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.3, 24, 1, true), new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: .25, depthWrite: false, side: THREE.DoubleSide}));
+  flash.position.set(0, H_Y1 - 0.18, -0.06); g.add(flash); flash.visible = false;
+  // LED and PIR on the front
+  const ledMat = new THREE.MeshStandardMaterial({color: 0x222222, emissive: 0x000000, emissiveIntensity: 2});
+  const led = new THREE.Mesh(new THREE.SphereGeometry(0.018, 16, 12), ledMat); led.position.set(-0.08, H_Y1 - 0.04, BIN_D / 2 + 0.01); g.add(led);
+  const pir = new THREE.Mesh(new THREE.SphereGeometry(0.016, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), std(0xf1f3f5)); pir.rotation.x = Math.PI / 2; pir.position.set(0.08, H_Y1 - 0.04, BIN_D / 2 + 0.005); g.add(pir);
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(ow * .95, 0.28, od * .95), new THREE.MeshBasicMaterial({color: 0xff4d4d, transparent: true, opacity: .2, depthWrite: false}));
+  beam.position.y = H_Y1 + 0.1; g.add(beam); beam.visible = false;
+  const hand = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.16, 4, 12), std(0xe0ac8a)); hand.position.y = H_Y1 + 0.1; g.add(hand); hand.visible = false;
+  // label
+  const el = document.createElement('div'); el.className = 'lbl'; el.innerHTML = `M${m.id} · ${m.fraction}<span class="st"></span>`;
+  const lab = new CSS2DObject(el); lab.position.set(0, H_Y1 + 0.18, 0); g.add(lab);
+  const sel = new THREE.Mesh(new THREE.RingGeometry(0.17, 0.19, 40), new THREE.MeshBasicMaterial({color: 0xe8590c, side: THREE.DoubleSide}));
+  sel.rotation.x = -Math.PI / 2; sel.position.y = H_Y1 + 0.025; g.add(sel);
+  M3[m.id] = {g, pivot, led, ledMat, flash, beam, hand, el, st: el.querySelector('.st'), sel, x};
+}
+// Jetson + cables
+const jet = new THREE.Group(); jet.position.set(0, 0.95, -0.85); scene.add(jet);
+const stand = box(0.36, 0.95, 0.26, std(0xdee2e6)); stand.position.y = -0.95 / 2; jet.add(stand);
+jet.add(box(0.3, 0.02, 0.22, std(0x1b5e20)));
+const sinkMat = std(0x495057, {metalness: .7, roughness: .3, emissive: 0x76b900, emissiveIntensity: 0});
+const sink = box(0.14, 0.05, 0.12, sinkMat); sink.position.y = 0.035; jet.add(sink);
+{ const el = document.createElement('div'); el.className = 'lbl'; el.textContent = 'Jetson Nano'; const l = new CSS2DObject(el); l.position.y = 0.15; jet.add(l); }
+const cables = {};
+for (const m of S.modules) {
+  const a = new THREE.Vector3(xOf(m.position), H_Y1 - 0.05, -BIN_D / 2), b = jet.position.clone().add(new THREE.Vector3((m.position - (N - 1) / 2) * 0.05, 0.01, 0.11));
+  const mid = a.clone().lerp(b, .5); mid.y -= 0.15;
+  const curve = new THREE.CatmullRomCurve3([a, a.clone().add(new THREE.Vector3(0, 0, -0.08)), mid, b]);
+  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 40, 0.006, 6), std(0x212529)); scene.add(tube);
+  cables[m.id] = curve;
+}
+const packetGeo = new THREE.SphereGeometry(0.016, 12, 8);
+const packets = []; for (let i = 0; i < 48; i++) { const p = new THREE.Mesh(packetGeo, new THREE.MeshBasicMaterial({color: 0xffffff})); p.visible = false; scene.add(p); packets.push(p); }
+
+// items
+const itemGeo = {
+  PET: (() => { const g = new THREE.CylinderGeometry(0.028, 0.028, 0.12, 16); return g; })(),
+  ALU: new THREE.CylinderGeometry(0.026, 0.026, 0.085, 18),
+  REST: new THREE.DodecahedronGeometry(0.042),
+};
+const itemMat = {
+  PET: new THREE.MeshPhysicalMaterial({color: 0x9fd3ff, roughness: .1, transmission: .4, transparent: true, opacity: .85}),
+  ALU: std(0xc9ced4, {metalness: .9, roughness: .25}),
+  REST: std(0x7a5c45, {flatShading: true, roughness: .9}),
+};
+const itemMeshes = new Map();
+function itemMesh(it){
+  let m = itemMeshes.get(it.id);
+  if (!m) {
+    m = new THREE.Mesh(itemGeo[it.true], itemMat[it.true].clone()); m.castShadow = true; m.userData.item = it.id;
+    m.userData.base = new THREE.Quaternion().setFromEuler(new THREE.Euler(it.true === 'REST' ? it.id : Math.PI / 2, 0, 0));
+    scene.add(m); itemMeshes.set(it.id, m);
+  }
+  return m;
+}
+
+// ------------------------------------------------------------------ pose computation
+const tmp = new THREE.Object3D(); scene.add(tmp);
+function flapRot(mid, t, q){
+  const {v, dir} = flapAt(mid, t), e = new THREE.Euler();
+  if (dir === 'LINKS') e.z = v * 0.65; else if (dir === 'RECHTS') e.z = -v * 0.65; else e.x = v * 1.1;
+  return q.setFromEuler(e);
+}
+function flapPoint(mid, t, out){
+  const q = flapRot(mid, t, new THREE.Quaternion());
+  out.set(0, 0.045, 0).applyQuaternion(q);
+  return out.add(new THREE.Vector3(xOf(modById[mid].position), FLAP_Y, 0));
+}
+function pileSpot(bin, k, id){
+  const m = modByFr[bin], j = (id * 9301 + 49297) % 233280 / 233280;
+  const layer = Math.floor(k / 12), r = k % 12;
+  return new THREE.Vector3(xOf(m.position) - BIN_W / 2 + 0.08 + (r % 4) * 0.11 + j * 0.02,
+    Math.min(0.05 + layer * 0.07, BIN_H - 0.05), -BIN_D / 2 + 0.09 + Math.floor(r / 4) * 0.13);
+}
+const V = () => new THREE.Vector3();
+function placeItem(it, t){
+  const mesh = itemMesh(it);
+  let seg = null; for (const s of it.plan) if (t >= s.t0 && t < s.t1) { seg = s; break; }
+  if (!seg) { mesh.visible = false; return null; }
+  mesh.visible = true; mesh.material.opacity = it.true === 'PET' ? .85 : 1; mesh.material.transparent = it.true === 'PET';
+  const s = Math.min(1, Math.max(0, (t - seg.t0) / Math.max(1e-6, seg.t1 - seg.t0)));
+  const q = new THREE.Quaternion();
+  if (seg.type === 'fall') {
+    const m = modById[seg.mod], a = new THREE.Vector3(xOf(m.position), H_Y1 + 0.3, 0.02), b = flapPoint(seg.mod, seg.t1, V());
+    mesh.position.lerpVectors(a, b, s * s); q.copy(mesh.userData.base);
+  } else if (seg.type === 'flap') {
+    flapPoint(seg.mod, t, mesh.position); flapRot(seg.mod, t, q).multiply(mesh.userData.base);
+  } else if (seg.type === 'slide') {
+    const a = flapPoint(seg.from, seg.t0, V()), b = flapPoint(seg.to, seg.t1, V());
+    mesh.position.lerpVectors(a, b, s); mesh.position.y += Math.sin(Math.PI * s) * 0.04; q.copy(mesh.userData.base);
+  } else if (seg.type === 'drop') {
+    const a = flapPoint(seg.from, seg.t0, V()), b = pileSpot(seg.bin, D.binSlot.get(it.id) || 0, it.id);
+    mesh.position.set(a.x + (b.x - a.x) * s, a.y + (b.y - a.y) * s * s, a.z + (b.z - a.z) * s);
+    q.setFromEuler(new THREE.Euler(s * 2, s * it.id, 0)).multiply(mesh.userData.base);
+  } else if (seg.type === 'pile') {
+    mesh.position.copy(pileSpot(seg.bin, D.binSlot.get(it.id) || 0, it.id));
+    q.setFromEuler(new THREE.Euler(2, it.id, 0)).multiply(mesh.userData.base);
+  } else if (seg.type === 'return') {
+    const a = flapPoint(seg.from, seg.t0, V()), b = new THREE.Vector3(a.x, H_Y1 + 0.35, 0.3);
+    const e = 1 - (1 - s) * (1 - s); mesh.position.lerpVectors(a, b, e); q.copy(mesh.userData.base);
+    mesh.material.transparent = true; mesh.material.opacity = 1 - Math.max(0, s - .6) / .4;
+  }
+  mesh.quaternion.copy(q);
+  return mesh;
+}
+
+// ------------------------------------------------------------------ per-frame update
+let renderT = 0, selected = null, followSel = false, selectedModule = S.modules[0].id;
+const selHalo = new THREE.Mesh(new THREE.SphereGeometry(0.075, 20, 14), new THREE.MeshBasicMaterial({color: 0xe8590c, wireframe: true, transparent: true, opacity: .6}));
+scene.add(selHalo);
+function update(t, wall){
+  for (const m of S.modules) {
+    const o = M3[m.id], dm = D.mods[m.id];
+    flapRot(m.id, t, o.pivot.quaternion);
+    const state = stepAt(dm.states, t, 'INIT'), led = stepAt(dm.leds, t, 'AUS');
+    let on = led !== 'AUS'; if (led === 'FEHLWURF') on = Math.floor(wall / 180) % 2 === 0;
+    o.ledMat.color.setHex(on ? LED[led] : 0x222222); o.ledMat.emissive.setHex(on ? LED[led] : 0);
+    o.flash.visible = state === 'ERKANNT';
+    const pir = pirAt(m.id, t); o.beam.visible = pir; o.hand.visible = pir;
+    o.st.textContent = state; o.st.style.background = STATE_CSS[state];
+    o.sel.visible = m.id === selectedModule;
+  }
+  sinkMat.emissiveIntensity = D.infer.length && t < D.infer[D.infer.length - 1][1] && t >= D.infer[D.infer.length - 1][0] - 0.05 ? 0.9 : 0;
+  // packets
+  let pi = 0; const keep = [];
+  for (const f of D.frames) {
+    const vis = Math.max(f.t1, f.t0 + 0.35);
+    if (t > vis + 0.05) continue; keep.push(f);
+    if (t < f.t0 || pi >= packets.length) continue;
+    const s = Math.min(1, (t - f.t0) / (vis - f.t0)), p = packets[pi++];
+    cables[f.mid].getPointAt(f.up ? s : 1 - s, p.position);
+    p.material.color.setHex(f.bad ? 0x000000 : (FRAME_COL[f.type] || 0x868e96));
+    p.scale.setScalar(f.type === 'IMAGE' ? 1.6 : 1); p.visible = true;
+  }
+  D.frames = keep; for (; pi < packets.length; pi++) packets[pi].visible = false;
+  // items
+  selHalo.visible = false;
+  for (const it of D.items.values()) {
+    const mesh = placeItem(it, t);
+    if (mesh && it.id === selected) { selHalo.visible = true; selHalo.position.copy(mesh.position); }
+  }
+  if (followSel && selHalo.visible) controls.target.lerp(selHalo.position, 0.08);
+}
+
+// ------------------------------------------------------------------ panels
+const tree = document.getElementById('tree'), binsEl = document.getElementById('bins');
+tree.innerHTML = `<li><div class="row"><span class="name">Jetson Nano</span><span class="chip" id="jetChip"></span></div><div class="sub" id="jetSub"></div></li>` +
+  S.modules.map(m => `<li data-mod="${m.id}"><div class="row"><span class="dot" id="led${m.id}"></span><span class="name">Modul ${m.id} · ${m.fraction}</span><span class="chip" id="st${m.id}"></span></div>
+   <div class="sub" id="sub${m.id}"></div><button id="rst${m.id}" style="display:none;margin-top:4px">Hausdienst: Reset</button></li>`).join('');
+binsEl.innerHTML = S.modules.map(m => `<li><div class="row"><span class="dot" style="background:${FR_CSS[m.fraction]}"></span><span class="name">${m.fraction}</span><b id="bin${m.fraction}">0</b></div><div class="sub" id="binSub${m.fraction}"></div></li>`).join('');
+for (const m of S.modules) document.getElementById('rst' + m.id).onclick = () => post('/api/control', {action: 'reset_fault', value: m.id});
+tree.addEventListener('click', e => { const li = e.target.closest('li[data-mod]'); if (li && e.target.tagName !== 'BUTTON') selectModule(+li.dataset.mod); });
+function updatePanels(t){
+  const busy = D.infer.length && t < D.infer[D.infer.length - 1][1];
+  const jc = document.getElementById('jetChip');
+  jc.textContent = !D.jetson ? 'AUS' : busy ? 'INFERENZ' : 'BEREIT'; jc.style.background = !D.jetson ? '#e03131' : busy ? '#76b900' : '#2f9e44';
+  document.getElementById('jetSub').textContent = `${D.infer.filter(i => i[1] <= t).length} Klassifikationen`;
+  for (const m of S.modules) {
+    const dm = D.mods[m.id], st = stepAt(dm.states, t, 'INIT'), led = stepAt(dm.leds, t, 'AUS');
+    const c = document.getElementById('st' + m.id); c.textContent = st; c.style.background = STATE_CSS[st];
+    document.getElementById('led' + m.id).style.background = led === 'AUS' ? '#333' : '#' + LED[led].toString(16).padStart(6, '0');
+    const onFlap = [...D.items.values()].filter(it => it.plan.some(s => s.type === 'flap' && s.mod === m.id && t >= s.t0 && t < s.t1)).map(it => '#' + it.id);
+    const lastFault = dm.faults.length ? dm.faults[dm.faults.length - 1][1] : '';
+    document.getElementById('sub' + m.id).textContent = `LED ${led} · Klappe: ${onFlap.join(' ') || 'leer'}${pirAt(m.id, t) ? ' · PIR: Hand!' : ''}${st === 'STOERUNG' ? ' · ' + lastFault : ''}`;
+    document.getElementById('rst' + m.id).style.display = st === 'STOERUNG' ? '' : 'none';
+  }
+  for (const m of S.modules) {
+    let n = 0, wrong = 0;
+    for (const it of D.items.values()) for (const e of it.path) if (e[1] === 'bin' && e[2] === m.fraction && e[0] <= t) { n++; if (it.true !== m.fraction) wrong++; }
+    document.getElementById('bin' + m.fraction).textContent = n;
+    document.getElementById('binSub' + m.fraction).textContent = wrong ? `${wrong} falsch` : 'alle richtig';
+  }
+  inspector(t);
+  if (logDirty) renderLog();
+}
+function inspector(t){
+  const it = D.items.get(selected), el = document.getElementById('insp');
+  if (!it) return;
+  const inp = it.input || {}, m = modById[it.chosen];
+  const route = it.path.map(e => `${e[0].toFixed(2)} s ${e[1] === 'thrown' ? 'Einwurf M' + e[2] : e[1] === 'flap' ? 'Klappe M' + e[2] : e[1] === 'bin' ? 'Behälter ' + e[2] : 'gehalten'}`).join('<br>');
+  const fb = it.t_led != null ? `${(it.t_led - it.t_throw).toFixed(2)} s (${it.led})` : '–';
+  const html = `<table>
+   <tr><td>Gegenstand</td><td><b>#${it.id}</b> ${it.true}${inp.random ? ' (zufällig)' : ''}</td></tr>
+   <tr><td>Vorgang</td><td>${it.vid || '–'}</td></tr>
+   <tr><td>Gewählt</td><td>M${m.id} (${m.fraction})${m.fraction !== it.true ? ' <b style="color:#f08c00">Fehlwurf</b>' : ''}</td></tr>
+   ${inp.detected ? `<tr><td>Eingabe</td><td>${inp.detected}, Konfidenz ${(+inp.confidence).toFixed(2)}</td></tr>` : ''}
+   <tr><td>Erkannt (Kern)</td><td>${it.detected ? `${it.detected}${it.confidence != null ? ' · ' + it.confidence.toFixed(2) : ''}` : '…'}</td></tr>
+   <tr><td>Rückmeldung</td><td>${fb}</td></tr>
+   <tr><td>Ergebnis</td><td><b>${it.outcome ? OUT_TXT[it.outcome] : 'läuft…'}</b></td></tr>
+  </table><div class="route">${route}</div>`;
+  if (el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; }
+}
+let logDirty = true;
+const logEl = document.getElementById('log');
+function renderLog(){
+  logDirty = false;
+  const fr = document.getElementById('logFrames').checked, stt = document.getElementById('logStates').checked;
+  const rows = D.log.filter(e => (fr || !e.cls.startsWith('frame')) && (stt || e.cls !== 'state')).slice(-150).reverse();
+  logEl.innerHTML = rows.map(e => `<div class="${e.cls}" data-item="${e.item || ''}"><span class="t">${e.t.toFixed(2)}</span>${e.text}</div>`).join('');
+}
+document.getElementById('logFrames').onchange = document.getElementById('logStates').onchange = () => logDirty = true;
+logEl.onclick = e => { const d = e.target.closest('div[data-item]'); if (d && d.dataset.item) selected = +d.dataset.item; };
+
+// state chart (last 30 s), like a signal plot
+const gantt = document.getElementById('gantt'), gx = gantt.getContext('2d');
+function drawGantt(t){
+  const w = gantt.clientWidth, h = gantt.clientHeight, dpr = devicePixelRatio;
+  if (gantt.width !== w * dpr || gantt.height !== h * dpr) { gantt.width = w * dpr; gantt.height = h * dpr; }
+  gx.setTransform(dpr, 0, 0, dpr, 0, 0); gx.clearRect(0, 0, w, h);
+  const L = 120, R = 12, win = 30, t0 = t - win, X = tt => L + (tt - t0) / win * (w - L - R);
+  const rows = [], rh = Math.min(22, (h - 24) / (N * 2 + 1));
+  gx.font = '11px Segoe UI, sans-serif'; gx.textBaseline = 'middle';
+  gx.strokeStyle = '#e9ecef'; gx.fillStyle = '#868e96';
+  for (let s = Math.ceil(t0); s <= t; s++) { if (s % 5) continue; const x = X(s); gx.beginPath(); gx.moveTo(x, 4); gx.lineTo(x, h - 16); gx.stroke(); gx.fillText(s + ' s', x - 8, h - 7); }
+  let y = 6;
+  const bar = (list, colorOf, label) => {
+    gx.fillStyle = '#495057'; gx.fillText(label, 8, y + rh / 2);
+    for (let i = 0; i < list.length; i++) {
+      const a = list[i][0], b = i + 1 < list.length ? list[i + 1][0] : t; if (b < t0 || a > t) continue;
+      const c = colorOf(list[i][1]); if (!c) continue;
+      gx.fillStyle = c; gx.fillRect(X(Math.max(a, t0)), y + 2, Math.max(1, X(Math.min(b, t)) - X(Math.max(a, t0))), rh - 4);
+      if (X(Math.min(b, t)) - X(Math.max(a, t0)) > 58) { gx.fillStyle = '#fff'; gx.fillText(list[i][1], X(Math.max(a, t0)) + 4, y + rh / 2); }
+    }
+    y += rh;
+  };
+  for (const m of S.modules) {
+    const dm = D.mods[m.id];
+    bar(dm.states, s => STATE_CSS[s], `M${m.id} Zustand`);
+    bar(dm.leds, l => l === 'AUS' ? null : '#' + LED[l].toString(16).padStart(6, '0'), `M${m.id} LED`);
+  }
+  gx.fillStyle = '#495057'; gx.fillText('Jetson Inferenz', 8, y + rh / 2);
+  gx.fillStyle = '#76b900'; for (const [a, b] of D.infer) if (b >= t0) gx.fillRect(X(Math.max(a, t0)), y + 3, Math.max(2, X(b) - X(Math.max(a, t0))), rh - 6);
+  gx.strokeStyle = '#e8590c'; gx.lineWidth = 2; gx.beginPath(); gx.moveTo(X(t), 2); gx.lineTo(X(t), h - 16); gx.stroke(); gx.lineWidth = 1;
+}
+
+// ------------------------------------------------------------------ throw form
+const form = {module: S.modules[0].id, detected: S.modules[0].fraction, truth: ''};
+const segModule = document.getElementById('segModule'), segDet = document.getElementById('segDetected'), segTrue = document.getElementById('segTrue');
+function seg(el, opts, key){
+  el.innerHTML = opts.map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join('');
+  el.onclick = e => { const b = e.target.closest('button'); if (!b) return; form[key] = key === 'module' ? +b.dataset.v : b.dataset.v; if (key === 'module') selectedModule = form.module; refreshForm(); };
+}
+seg(segModule, S.modules.map(m => [m.id, `M${m.id} ${m.fraction}`]), 'module');
+seg(segDet, [...S.modules.map(m => [m.fraction, m.fraction]), ['UNBEKANNT', 'UNBEKANNT']], 'detected');
+seg(segTrue, [['', '= erkannt'], ...S.modules.map(m => [m.fraction, m.fraction])], 'truth');
+const conf = document.getElementById('conf'), confOut = document.getElementById('confOut'), confNote = document.getElementById('confnote');
+function refreshForm(){
+  for (const [el, key] of [[segModule, 'module'], [segDet, 'detected'], [segTrue, 'truth']])
+    for (const b of el.children) b.classList.toggle('sel', b.dataset.v === String(form[key]));
+  const c = +conf.value; confOut.textContent = c.toFixed(2);
+  const low = form.detected !== 'UNBEKANNT' && c < S.threshold;
+  confNote.className = low ? 'low' : '';
+  confNote.textContent = form.detected === 'UNBEKANNT' ? 'Modell erkennt nichts → REST'
+    : low ? `unter Schwelle ${S.threshold.toFixed(2)} → Kern behandelt als UNBEKANNT (REST)` : `über Schwelle ${S.threshold.toFixed(2)}`;
+  // UNBEKANNT has no truth of its own: require an explicit one
+  if (form.detected === 'UNBEKANNT' && !form.truth) { form.truth = 'REST'; refreshForm(); }
+  selectedModule = form.module;
+}
+conf.oninput = refreshForm;
+function selectModule(id){ form.module = id; refreshForm(); }
+async function doThrow(){
+  const body = {module: form.module, detected: form.detected, confidence: +conf.value, true: form.truth || null, linger: document.getElementById('linger').checked};
+  const r = await post('/api/throw', body);
+  if (r && r.ok) { selected = r.item; }
+}
+document.getElementById('throwForm').onsubmit = () => { doThrow(); return false; };
+refreshForm();
+
+// ------------------------------------------------------------------ server I/O
+async function post(url, body){
+  try { return await backend.call(url.replace('/api/', ''), body); }
+  catch (e) { return null; }
+}
+async function poll(){
+  try {
+    const j = await backend.call('poll', {from: D.next, epoch: D.epoch});
+    if (j.epoch !== D.epoch) { D.epoch = j.epoch; resetData(); }
+    for (const ev of j.events) ingest(ev);
+    D.next = j.next; D.now = j.now; D.recvAt = performance.now();
+    D.speed = j.speed; D.paused = j.paused; D.jetson = j.jetson; D.random = j.random;
+    document.getElementById('offline').style.display = 'none';
+    syncButtons();
+  } catch (e) { document.getElementById('offline').style.display = 'block'; }
+  setTimeout(poll, 80);
+}
+function syncButtons(){
+  const pb = document.getElementById('playBtn'); pb.textContent = D.paused ? '▶ Weiter' : '⏸ Pause';
+  const rb = document.getElementById('randBtn'); rb.textContent = 'Zufällige Nutzer: ' + (D.random ? 'an' : 'aus'); rb.classList.toggle('on', D.random);
+  const jb = document.getElementById('jetsonBtn'); jb.textContent = 'Jetson: ' + (D.jetson ? 'an' : 'AUS'); jb.classList.toggle('off', !D.jetson);
+  const ss = document.getElementById('speedSel'); if (document.activeElement !== ss && +ss.value !== D.speed) ss.value = String(D.speed);
+}
+document.getElementById('playBtn').onclick = () => post('/api/control', {action: D.paused ? 'resume' : 'pause'});
+document.getElementById('speedSel').onchange = e => post('/api/control', {action: 'speed', value: +e.target.value});
+document.getElementById('randBtn').onclick = () => post('/api/control', {action: 'random', value: !D.random});
+document.getElementById('jetsonBtn').onclick = () => post('/api/control', {action: 'jetson', value: !D.jetson});
+document.getElementById('restartBtn').onclick = () => { if (confirm('Station neu starten? Alle Vorgänge und die Statistik werden gelöscht.')) post('/api/control', {action: 'restart'}); };
+document.getElementById('reportBtn').onclick = async () => {
+  const r = await backend.call('report');
+  document.getElementById('reportText').textContent = r.text; document.getElementById('modal').style.display = 'flex';
+};
+document.getElementById('aboutBtn').onclick = () => document.getElementById('about').style.display = 'flex';
+document.getElementById('closeAbout').onclick = () => document.getElementById('about').style.display = 'none';
+document.getElementById('closeModal').onclick = () => document.getElementById('modal').style.display = 'none';
+document.getElementById('followBtn').onclick = e => { followSel = !followSel; e.target.classList.toggle('sel', followSel); e.target.style.background = followSel ? '#e8590c' : ''; e.target.style.color = followSel ? '#fff' : ''; };
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
+  if (e.code === 'Space') { e.preventDefault(); post('/api/control', {action: D.paused ? 'resume' : 'pause'}); }
+  if (e.code === 'Enter') { e.preventDefault(); doThrow(); }
+  if (/^Digit[1-9]$/.test(e.code)) { const m = S.modules[+e.code.slice(5) - 1]; if (m) selectModule(m.id); }
+});
+
+// ------------------------------------------------------------------ picking + camera views
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); let downAt = null;
+function pickAt(ev){
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set((ev.clientX - r.left) / r.width * 2 - 1, -(ev.clientY - r.top) / r.height * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const items = [...itemMeshes.values()].filter(m => m.visible);
+  const hit = ray.intersectObjects([...items, ...openings], false)[0];
+  return hit ? hit.object : null;
+}
+renderer.domElement.addEventListener('pointerdown', e => downAt = [e.clientX, e.clientY]);
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 4) return;
+  const o = pickAt(e); if (!o) return;
+  if (o.userData.item) selected = o.userData.item; else if (o.userData.module) selectModule(o.userData.module);
+});
+renderer.domElement.addEventListener('dblclick', e => { const o = pickAt(e); if (o && o.userData.module) { selectModule(o.userData.module); doThrow(); } });
+const span = Math.max(1, N * P);
+const VIEWS = {iso: [1.1 * span, 1.9, 1.7 * span], front: [0, 1.0, 2.2 * span + 0.6], top: [0, 2.6 * span + 0.8, 0.01], side: [2.4 * span + 0.6, 1.1, 0]};
+function setView(k){ camera.position.set(...VIEWS[k]); controls.target.set(0, 0.65, -0.15); controls.update(); }
+document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => setView(b.dataset.view));
+setView('iso');
+
+function resize(){
+  const w = view.clientWidth, h = view.clientHeight;
+  renderer.setSize(w, h); labelR.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+
+// ------------------------------------------------------------------ main loop
+let lastPanel = 0;
+function loop(wall){
+  // estimate server time, render slightly behind so events are already in
+  if (D.recvAt) {
+    const est = D.paused ? D.now : D.now + (wall - D.recvAt) / 1000 * D.speed;
+    const target = Math.min(est, D.now + 0.3 * D.speed) - (D.paused ? 0 : 0.15 * D.speed);
+    renderT = Math.max(renderT, Math.max(0, target));
+  }
+  update(renderT, wall);
+  document.getElementById('clock').textContent = renderT.toFixed(1) + ' s';
+  if (wall - lastPanel > 100) { lastPanel = wall; updatePanels(renderT); drawGantt(renderT); }
+  controls.update(); renderer.render(scene, camera); labelR.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+resetData(); poll(); requestAnimationFrame(loop);
+</script>
+</body>
+</html>

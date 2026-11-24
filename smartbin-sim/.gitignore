@@ -9,3 +9,4 @@ report.json
 testset/
 *.onnx
 .pio/
+site/

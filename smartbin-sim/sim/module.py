@@ -11,7 +11,7 @@ import random
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Deque, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, Deque, Dict, List, Optional, Tuple
 
 from smartbin.adapters import protocol as p
 from smartbin.core.model import Direction, Fraction
@@ -72,6 +72,8 @@ class SimModule:
         self.state_log: List[Tuple[float, str]] = []
         self.powered = True
         self.last_done = (0, 0)           # (seq, result) of the last finished SORT
+        # observer for the 3D viewer: (direction or None = keep, target 0..1, duration)
+        self.trace_motion: Optional[Callable[[Optional[str], float, float], None]] = None
 
     # ------------------------------------------------------------ lifecycle
     def boot(self) -> None:
@@ -221,6 +223,8 @@ class SimModule:
                            waited + self.params.pir_recheck_s, phase)
             return
         # move half of the tilt, then check the PIR again (safety stop in between)
+        if self.trace_motion:
+            self.trace_motion(direction.value, 0.5 * (phase + 1), self.params.tilt_s / 2)
         nxt = self._tilt_second_half if phase == 0 else self._tilt_done
         self.sim.after(self.params.tilt_s / 2, nxt, direction, seq)
 
@@ -236,6 +240,8 @@ class SimModule:
         item = self.flap.popleft()
         assert self.station is not None
         self.station.deliver(item, self.module_id, direction)
+        if self.trace_motion:
+            self.trace_motion(None, 0.0, self.params.return_s)
         self.sim.after(self.params.return_s, self._back_at_rest, seq)
 
     def _back_at_rest(self, seq: int) -> None:
@@ -249,6 +255,8 @@ class SimModule:
     def _fault(self, code: int) -> None:
         """Safe state: servos to rest position, item stays on the flap."""
         self.faults.append((self.sim.now, int(code)))
+        if self.trace_motion and self.state == State.SORTIEREN:
+            self.trace_motion(None, 0.0, self.params.return_s)
         self._set_state(State.STOERUNG)
         self.led = "STOERUNG"
         self._send(p.MsgType.FAULT, self.seq, bytes([int(code), 5]))

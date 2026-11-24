@@ -33,6 +33,8 @@ RESULT: PASS
 | `smartbin/adapters/dashboard.py` | Dashboard für den Hausdienst (ADR-005) | Jetson |
 | `firmware/` | ESP32-CAM-Firmware (C++, PlatformIO) + Wokwi-Simulation, siehe `firmware/README.md` | ESP32 |
 | `sim/` | Simulierte Station: ESP32-Zwilling, Serial-Leitungen, Physik, Nutzer:innen, Bericht | nur Laptop/CI |
+| `sim/live.py`, `sim/viewer.html` | Interaktive 3D-Simulation im Browser (Einwurf von Hand) | nur Laptop |
+| `sim/web.py`, `web/`, `tools/build_web.py` | Dieselbe Simulation als statische Website (Python im Browser) | Browser |
 | `tests/` | Unit-, Vertrags- (Protokoll) und Szenario-Tests | Laptop/CI |
 | `tools/evaluate_model.py` | Prüft ein trainiertes Modell gegen das Testset (MUSS-01) | Laptop/CI |
 | `tools/wokwi_station.py` | Jetson-Software gegen die in Wokwi simulierte Firmware | Laptop |
@@ -58,6 +60,41 @@ python -m sim.run -v                                        # Log jedes Vorgangs
 
 Alle Parameter: `SimParams` in `sim/station.py` und `ModuleParams` in `sim/module.py`.
 Gleicher `--seed` = exakt gleicher Ablauf.
+
+## 3D-Simulation (interaktiv)
+
+```bash
+python -m sim.live --open                                   # http://127.0.0.1:8090
+python -m sim.live --config config/station-3.yaml --open    # andere Mechanik-Variante
+```
+
+Die Station läuft in Echtzeit im Browser (3D, ähnlich einer Roboter-Simulation): Klappen,
+LEDs, PIR, ESP32-CAM, Leitungen zum Jetson mit den einzelnen Frames, Behälter.
+Da die Bilderkennung nicht Teil dieser Software ist, gibt man **pro Einwurf von Hand ein,
+was der Klassifikator meldet**: Öffnung, Fraktion (oder UNBEKANNT) und Konfidenz. Optional
+auch, was der Gegenstand tatsächlich ist, um Fehlklassifikationen zu testen. Alles andere
+ist derselbe Code wie in `sim.run`: echter Kern, Protokoll, Statistik und ESP32-Zwilling.
+
+Weitere Knöpfe: Zeitraffer, Pause, «Hand bleibt in der Öffnung» (Sicherheitsstopp),
+zufällige Nutzer:innen, Jetson-Ausfall, Hausdienst-Reset, Bericht (MUSS-01..03 des Laufs).
+Nur lokal (`127.0.0.1`), ohne zusätzliche Pakete; three.js wird aus dem Internet (CDN) geladen.
+
+### Als Website (ohne Installation)
+
+Dieselbe 3D-Simulation lässt sich als statische Website veröffentlichen. Die echte
+Python-Software (Kern, Protokoll, Statistik, ESP32-Zwilling) läuft dann **im Browser** der
+Besucher:innen (Pyodide, Python als WebAssembly); es braucht keinen Server und keine Installation.
+
+```bash
+python tools/build_web.py                 # erzeugt site/
+python -m http.server -d site 8000        # lokal testen: http://127.0.0.1:8000
+```
+
+`site/` kann auf jedem statischen Hosting liegen. Für GitHub Pages ist der Workflow
+`.github/workflows/pages.yml` vorbereitet (einmalig: Settings → Pages → Source «GitHub Actions»);
+er testet, baut und veröffentlicht bei jedem Push auf `main`. Die Konfiguration lässt sich auf
+der Seite oben links wählen oder per Link teilen, z. B. `…/?config=config/station-3.yaml`.
+Erster Aufruf: ca. 10–30 s Ladezeit (Python wird einmalig geladen, danach aus dem Cache).
 
 ## Erkenntnisse aus der Simulation (Stand 24.11.2026)
 

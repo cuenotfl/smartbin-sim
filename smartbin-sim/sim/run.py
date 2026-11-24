@@ -25,6 +25,14 @@ def build_params(raw: dict, seed: int) -> SimParams:
     return params
 
 
+def apply_sets(params: SimParams, sets) -> None:
+    """Apply --set KEY=VALUE overrides to SimParams or ModuleParams."""
+    for kv in sets:
+        key, value = kv.split("=", 1)
+        target = params.module if hasattr(params.module, key) and not hasattr(params, key) else params
+        setattr(target, key, type(getattr(target, key))(value))
+
+
 def export_db(st: PhysicalStation, path: str) -> int:
     """Copy the simulated statistics into a database file, shifted so the
     simulated day ends now (demo data for the dashboard)."""
@@ -58,10 +66,7 @@ def main(argv=None) -> int:
     raw = load_raw(args.config)
     config = from_dict(raw["station"])
     params = build_params(raw, args.seed)
-    for kv in args.set:
-        key, value = kv.split("=", 1)
-        target = params.module if hasattr(params.module, key) and not hasattr(params, key) else params
-        setattr(target, key, type(getattr(target, key))(value))
+    apply_sets(params, args.set)
 
     st = PhysicalStation(config, params)
     last = st.generate_throws(args.throws)

@@ -97,7 +97,8 @@ class JetsonTx(Transport):
 class PhysicalStation:
     """Wires the REAL core (smartbin package) to simulated hardware."""
 
-    def __init__(self, config: StationConfig, params: SimParams) -> None:
+    def __init__(self, config: StationConfig, params: SimParams,
+                 classifier: Optional[FakeClassifier] = None) -> None:
         self.config = config
         self.params = params
         self.sim = Sim()
@@ -124,9 +125,10 @@ class PhysicalStation:
 
         self.store = SqliteEventStore()
         self.gateway = SerialGateway(config, transports, clock=lambda: self.sim.now)
-        classifier = FakeClassifier(params.classifier_accuracy, params.seed,
-                                    [m.fraction for m in config.modules],
-                                    on_inference=self.node.inference_started)
+        if classifier is None:
+            classifier = FakeClassifier(params.classifier_accuracy, params.seed,
+                                        [m.fraction for m in config.modules])
+        classifier.on_inference = self.node.inference_started
         self.core = SortingService(config, classifier, self.gateway, self.store)
         self.gateway.attach(self.core)
         self.node.gateway = self.gateway
