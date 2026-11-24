@@ -1,0 +1,6 @@
+# Real classifier on a laptop (CPU). On the Jetson use the NVIDIA builds instead.
+onnxruntime>=1.10
+numpy>=1.19
+Pillow>=8.0
+# Jetson only:
+# pyserial>=3.5

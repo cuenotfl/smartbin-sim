@@ -1,0 +1,14 @@
+# 2er-Station: Allgemeiner Abfall (REST) | PET. Nur diese Datei unterscheidet
+# sich von der 3er-Station (QS-7).
+station:
+  confidence_threshold: 0.6
+  routing: neighbour_bin
+  modules:
+    - {id: 1, fraction: REST, position: 0, port: /dev/ttyUSB0}
+    - {id: 2, fraction: PET,  position: 1, port: /dev/ttyUSB1}
+
+simulation:
+  classifier_accuracy: 0.95
+  misthrow_rate: 0.3
+  module:
+    p_blockade: 0.002

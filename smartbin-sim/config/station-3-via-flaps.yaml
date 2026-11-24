@@ -1,0 +1,31 @@
+# 3er-Station PET | ALU | REST, Gegenstand wird von Klappe zu Klappe weitergegeben.
+# Jeder Behaelter erreichbar, kostet pro Schritt Zeit.
+station:
+  confidence_threshold: 0.6
+  routing: via_flaps
+  modules:
+    - {id: 1, fraction: PET,  position: 0, port: /dev/ttyUSB0}
+    - {id: 2, fraction: ALU,  position: 1, port: /dev/ttyUSB1}
+    - {id: 3, fraction: REST, position: 2, port: /dev/ttyUSB2}
+  timeouts:
+    image_s: 2.0
+    sort_s: 6.0
+    transit_s: 3.0
+    heartbeat_interval_s: 1.0
+    heartbeat_timeout_s: 3.0
+
+simulation:
+  baud: 921600
+  classifier_accuracy: 0.95
+  inference_s: 0.08
+  misthrow_rate: 0.3
+  mean_interval_s: 8.0
+  p_hand_lingers: 0.03
+  handover_s: 0.3
+  janitor_reset_s: 120
+  module:
+    capture_s: 0.15
+    image_bytes: 15000
+    tilt_s: 0.6
+    return_s: 0.4
+    p_blockade: 0.002
