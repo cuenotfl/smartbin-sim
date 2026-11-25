@@ -10,14 +10,15 @@ jobs:
     defaults:
       run:
         working-directory: smartbin-sim
+    # Official Python images instead of setup-python: the runner images no longer
+    # ship 3.8, but the Jetson Nano does (CLAUDE.md rule 8).
+    container: python:${{ matrix.python }}-slim
     strategy:
+      fail-fast: false
       matrix:
         python: ["3.8", "3.12"]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python }}
       - run: pip install -r requirements-dev.txt
       - name: Unit, contract and scenario tests
         run: python -m pytest -q

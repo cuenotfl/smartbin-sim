@@ -16,7 +16,35 @@ struct Sent {
     std::vector<uint8_t> payload;
 };
 
-struct FakeHal : Hal, FrameHandler {
+// Jetson side of the line: decodes everything the module sends, any size.
+// (FrameDecoder is the ESP32 receive path and skips payloads > 64 bytes, e.g.
+// the IMAGE, by design; it must not be used to look at the module's output.)
+struct JetsonRx {
+    std::vector<uint8_t> buf;
+    template <class F>
+    void feed(const uint8_t* d, size_t n, F onFrame) {
+        buf.insert(buf.end(), d, d + n);
+        while (buf.size() >= HEADER_SIZE) {
+            TEST_ASSERT_EQUAL_HEX8(START, buf[0]);  // the module never sends garbage
+            TEST_ASSERT_EQUAL_HEX8(crc8(&buf[1], 7), buf[8]);
+            uint32_t len = (uint32_t)buf[4] | ((uint32_t)buf[5] << 8) |
+                           ((uint32_t)buf[6] << 16) | ((uint32_t)buf[7] << 24);
+            size_t total = HEADER_SIZE + len + CRC_SIZE;
+            if (buf.size() < total) return;
+            uint16_t crc = (uint16_t)(buf[total - 2] | (buf[total - 1] << 8));
+            TEST_ASSERT_EQUAL_HEX16(crc16(&buf[1], HEADER_SIZE - 1 + len), crc);
+            Frame f;
+            f.type = buf[1];
+            f.seq = (uint16_t)(buf[2] | (buf[3] << 8));
+            f.payload = &buf[HEADER_SIZE];
+            f.length = len;
+            onFrame(f);
+            buf.erase(buf.begin(), buf.begin() + (long)total);
+        }
+    }
+};
+
+struct FakeHal : Hal {
     uint32_t now = 0;
     bool hand = false, item = false, jammed = false, cameraOk = true;
     FlapTarget flapTarget = FlapTarget::REST;
@@ -24,7 +52,7 @@ struct FakeHal : Hal, FrameHandler {
     bool movedWhileHand = false;
     uint8_t ledSignal = Signal::AUS;
     std::vector<uint8_t> image = std::vector<uint8_t>(300, 0x42);
-    FrameDecoder rx;  // decodes what the module sends
+    JetsonRx rx;  // decodes what the module sends
     std::vector<Sent> sent;
 
     uint32_t nowMs() override { return now; }
@@ -45,9 +73,10 @@ struct FakeHal : Hal, FrameHandler {
         return cameraOk;
     }
     void releaseImage() override {}
-    void write(const uint8_t* d, size_t n) override { rx.feed(d, n, *this); }
-    void onFrame(const Frame& f) override {
-        sent.push_back({f.type, f.seq, std::vector<uint8_t>(f.payload, f.payload + f.length)});
+    void write(const uint8_t* d, size_t n) override {
+        rx.feed(d, n, [this](const Frame& f) {
+            sent.push_back({f.type, f.seq, std::vector<uint8_t>(f.payload, f.payload + f.length)});
+        });
     }
 
     int count(uint8_t type) const {
