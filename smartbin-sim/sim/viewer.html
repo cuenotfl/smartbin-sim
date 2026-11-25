@@ -224,8 +224,11 @@ const P = 0.52, BIN_W = 0.5, BIN_H = 0.7, BIN_D = 0.46;   // modules stand side 
 // Sorting floor (photo of the prototype): two comb forks per module, hinged on a
 // tube at the left and right edge, each on its own servo. The tines interleave,
 // so the forks can swing past each other.
-const HINGE_X = BIN_W / 2 - 0.045, TINE_L = 2 * HINGE_X - 0.03, TINES = 16;
-const FLIP = 2.6;            // pass: the fork flips ~150 deg over its hinge into the neighbour
+// Fork pair is ~2/3 of the plate wide and ~1/2 deep (photo).
+const HINGE_X = 0.16, TINE_L = 2 * HINGE_X - 0.03, TINES = 12, FORK_D = 0.25;
+const FLIP = 2.6;            // sender: the fork opens up ~150 deg over its hinge
+const PICK_D = 0.2;          // receiver picks the item up this far from its hinge
+const VIA_FLAPS = S.routing === 'via_flaps';
 const H_Y0 = 0.76, H_Y1 = 1.18, FLAP_Y = 0.86;
 const FR = {PET:0x2f80ed, ALU:0xaab4be, REST:0x5c5f66};
 const FR_CSS = {PET:'#2f80ed', ALU:'#8a96a3', REST:'#5c5f66', UNBEKANNT:'#f08c00'};
@@ -254,10 +257,10 @@ function lastIdx(arr, t){ let lo=0, hi=arr.length-1, r=-1; while(lo<=hi){const m
 const stepAt = (arr, t, def) => { const i = lastIdx(arr, t); return i < 0 ? def : arr[i][1]; };
 function flapAt(mid, t){
   const segs = D.mods[mid].motion, i = lastIdx(segs, t);
-  if (i < 0) return {v:0, dir:'DIREKT'};
+  if (i < 0) return {v:0, dir:'DIREKT', returning:false, t0:0};
   const [t0, t1, a, b, dir] = segs[i];
   const v = t >= t1 ? b : a + (b - a) * (t - t0) / Math.max(1e-6, t1 - t0);
-  return {v, dir};
+  return {v, dir, returning: b < a, t0};   // returning: item already released at t0
 }
 function pirAt(mid, t){ const p = D.mods[mid].pir; for (let k = lastIdx(p, t); k >= 0 && k > p.length - 8; k--) if (p[k][1] > t) return true; return false; }
 
@@ -372,23 +375,23 @@ for (const m of S.modules) {
   pick.position.y = H_Y1 + 0.02; pick.userData.module = m.id; g.add(pick); openings.push(pick);
   // sorting floor: base plate with opening + two interleaving comb forks
   const plateMat = std(0xf1f3f5, {roughness: .7}), forkMat = std(0xfafafa, {roughness: .45});
-  const oy = FLAP_Y - 0.03, hole = 2 * HINGE_X + 0.04, holeD = BIN_D - 0.07;
+  const oy = FLAP_Y - 0.03, hole = 2 * HINGE_X + 0.06, holeD = FORK_D + 0.03;
   for (const sz of [-1, 1]) { const b = box(BIN_W - 0.02, 0.01, (BIN_D - holeD) / 2, plateMat); b.position.set(0, oy, sz * (holeD / 2 + (BIN_D - holeD) / 4)); g.add(b); }
   for (const sx of [-1, 1]) { const b = box((BIN_W - hole) / 2, 0.01, holeD, plateMat); b.position.set(sx * (hole / 2 + (BIN_W - hole) / 4), oy, 0); g.add(b); }
   const forks = {};
   for (const side of ['L', 'R']) {
     const sx = side === 'L' ? -1 : 1, pivot = new THREE.Group();
     pivot.position.set(sx * HINGE_X, FLAP_Y, 0); g.add(pivot);
-    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, holeD - 0.01, 20), forkMat);
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, FORK_D, 20), forkMat);
     tube.rotation.x = Math.PI / 2; tube.castShadow = true; pivot.add(tube);
     for (let k = side === 'L' ? 0 : 1; k < TINES; k += 2) {
       const tine = box(TINE_L, 0.008, 0.011, forkMat);
-      tine.position.set(-sx * (TINE_L / 2 + 0.012), 0.008, -holeD / 2 + 0.02 + k * (holeD - 0.04) / (TINES - 1));
+      tine.position.set(-sx * (TINE_L / 2 + 0.012), 0.008, -FORK_D / 2 + 0.01 + k * (FORK_D - 0.02) / (TINES - 1));
       pivot.add(tine);
     }
     // servo at the hinge end, the two at diagonally opposite corners
     const sz = side === 'L' ? -1 : 1, servo = new THREE.Group();
-    servo.position.set(sx * HINGE_X, FLAP_Y - 0.005, sz * (holeD / 2 + 0.035)); g.add(servo);
+    servo.position.set(sx * HINGE_X, FLAP_Y - 0.005, sz * (FORK_D / 2 + 0.035)); g.add(servo);
     servo.add(box(0.045, 0.042, 0.055, std(0x161616)));
     const label = box(0.046, 0.026, 0.035, std(0xd6336c, {roughness: .3})); label.position.y = 0.01; servo.add(label);
     forks[side] = pivot;
@@ -454,29 +457,66 @@ function itemMesh(it){
 
 // ------------------------------------------------------------------ pose computation
 const tmp = new THREE.Object3D(); scene.add(tmp);
-// fork angles (rotation about the hinge tube): DIREKT = both down,
-// RECHTS/LINKS = that side's fork flips over its hinge into the neighbour
-function forkAngles(mid, t){
-  const {v, dir} = flapAt(mid, t);
-  if (dir === 'RECHTS') return {L: 0, R: -v * FLIP, v, dir};
-  if (dir === 'LINKS') return {L: v * FLIP, R: 0, v, dir};
-  return {L: -v * Math.PI / 2, R: v * Math.PI / 2, v, dir};
+// Fork angles = rotation about the hinge tube; 0 = flat (closed floor).
+// L fork: tines point +x, positive angle lifts them; R fork mirrored.
+//   DIREKT        both forks swing down 90 deg, the item falls into the own bin.
+//   pass (via_flaps), e.g. RECHTS from M1 to M2:
+//     1st half of the tilt: M2's L fork swings 180 deg over its hinge and lies
+//                           in M1 under the item (waiting)
+//     2nd half:             M1's R fork opens up over its hinge, out of the way;
+//                           the item slides onto M2's fork
+//     handover (item released): M2's fork swings back 180 -> 0 deg and carries
+//                           the item over its hinge into M2's centre
+//   neighbour_bin: the sender's fork flips and the item drops into the neighbour's bin.
+const HANDOVER = () => S.params.handover_s;
+function senderAngle(st, t){
+  if (!VIA_FLAPS) return FLIP * st.v;
+  return st.returning ? FLIP * st.v : FLIP * Math.max(0, 2 * st.v - 1);
 }
-// where an item lies on the floor: it rides the fork that moves and slides
-// towards its hinge; on DIREKT it sinks as both forks open
+function receiverAngle(st, t){   // fork of the module that receives from `st`
+  if (!VIA_FLAPS || st.v <= 0 && !st.returning) return 0;
+  if (st.returning) return Math.PI * Math.max(0, 1 - (t - st.t0) / HANDOVER());
+  return Math.PI * Math.min(1, 2 * st.v);
+}
+function forkAngles(mid, t){
+  const own = flapAt(mid, t), pos = modById[mid].position;
+  let L = 0, R = 0;
+  if (own.v > 0) {
+    if (own.dir === 'RECHTS') R = -senderAngle(own, t);
+    else if (own.dir === 'LINKS') L = senderAngle(own, t);
+    else { L = -own.v * Math.PI / 2; R = own.v * Math.PI / 2; }
+  }
+  // a neighbour hands an item over: the fork on that side picks it up
+  const left = S.modules.find(m => m.position === pos - 1), right = S.modules.find(m => m.position === pos + 1);
+  if (left && L === 0) { const st = flapAt(left.id, t); if (st.dir === 'RECHTS') L = receiverAngle(st, t); }
+  if (right && R === 0) { const st = flapAt(right.id, t); if (st.dir === 'LINKS') R = -receiverAngle(st, t); }
+  return {L, R, v: own.v, dir: own.dir, own};
+}
+// where an item lies while it is on this module's floor
 function flapPoint(mid, t, out){
-  const a = forkAngles(mid, t), x0 = xOf(modById[mid].position), h = 0.05;
-  if (a.dir === 'RECHTS' || a.dir === 'LINKS') {
-    const sx = a.dir === 'RECHTS' ? 1 : -1, ang = sx > 0 ? a.R : a.L, d = HINGE_X * (1 - 0.75 * a.v);
-    // point at distance d from the hinge along the fork, h above it, rotated about the hinge
-    const lx = -sx * d, c = Math.cos(ang), s_ = Math.sin(ang);
+  const a = forkAngles(mid, t), x0 = xOf(modById[mid].position), h = 0.045;
+  if ((a.dir === 'RECHTS' || a.dir === 'LINKS') && a.v > 0) {
+    const sx = a.dir === 'RECHTS' ? 1 : -1;
+    if (VIA_FLAPS) {   // stays put, then slides onto the receiver's waiting fork
+      const target = x0 + sx * (P - HINGE_X - PICK_D), k = Math.max(0, 2 * a.v - 1);
+      return out.set(x0 + (target - x0) * k, FLAP_Y + h, 0);
+    }
+    // neighbour_bin: rides the sender's fork towards its hinge
+    const ang = sx > 0 ? a.R : a.L, d = HINGE_X * (1 - 0.75 * a.v), lx = -sx * d, c = Math.cos(ang), s_ = Math.sin(ang);
     return out.set(x0 + sx * HINGE_X + lx * c - h * s_, FLAP_Y + lx * s_ + h * c, 0);
   }
-  return out.set(x0, FLAP_Y + h - a.v * 0.08, 0);
+  return out.set(x0, FLAP_Y + h - Math.max(0, a.v) * 0.08, 0);
+}
+// handover: carried by the receiver's fork from 180 deg back to 0 over its hinge
+function handoverPoint(from, to, s, out){
+  const sx = modById[to].position > modById[from].position ? 1 : -1;   // +1: item moves right
+  const hx = xOf(modById[to].position) - sx * HINGE_X, ang = Math.PI * (1 - s);
+  const d = PICK_D + (HINGE_X - PICK_D) * s;
+  return out.set(hx + sx * d * Math.cos(ang), FLAP_Y + 0.045 + d * Math.sin(ang), 0);
 }
 function flapRot(mid, t, q){
   const a = forkAngles(mid, t);
-  return q.setFromEuler(new THREE.Euler(0, 0, a.dir === 'RECHTS' ? a.R * 0.5 : a.dir === 'LINKS' ? a.L * 0.5 : 0));
+  return q.setFromEuler(new THREE.Euler(0, 0, !VIA_FLAPS && a.dir === 'RECHTS' ? a.R * 0.5 : !VIA_FLAPS && a.dir === 'LINKS' ? a.L * 0.5 : 0));
 }
 function pileSpot(bin, k, id){
   const m = modByFr[bin], j = (id * 9301 + 49297) % 233280 / 233280;
@@ -498,8 +538,9 @@ function placeItem(it, t){
   } else if (seg.type === 'flap') {
     flapPoint(seg.mod, t, mesh.position); flapRot(seg.mod, t, q).multiply(mesh.userData.base);
   } else if (seg.type === 'slide') {
-    const a = flapPoint(seg.from, seg.t0, V()), b = flapPoint(seg.to, seg.t1, V());
-    mesh.position.lerpVectors(a, b, s); mesh.position.y += Math.sin(Math.PI * s) * 0.04; q.copy(mesh.userData.base);
+    if (VIA_FLAPS) { handoverPoint(seg.from, seg.to, s, mesh.position); q.setFromEuler(new THREE.Euler(0, 0, -Math.PI * s)).multiply(mesh.userData.base); }
+    else { const a = flapPoint(seg.from, seg.t0, V()), b = flapPoint(seg.to, seg.t1, V());
+      mesh.position.lerpVectors(a, b, s); mesh.position.y += Math.sin(Math.PI * s) * 0.04; q.copy(mesh.userData.base); }
   } else if (seg.type === 'drop') {
     const a = flapPoint(seg.from, seg.t0, V()), b = pileSpot(seg.bin, D.binSlot.get(it.id) || 0, it.id);
     mesh.position.set(a.x + (b.x - a.x) * s, a.y + (b.y - a.y) * s * s, a.z + (b.z - a.z) * s);
