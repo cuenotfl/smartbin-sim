@@ -119,6 +119,7 @@ footer{grid-column:1/4;border-top:1px solid var(--line);background:#fff;position
     <div id="viewbar">
       <button data-view="iso">Iso</button><button data-view="front">Vorne</button>
       <button data-view="top">Oben</button><button data-view="side">Seite</button>
+      <button data-view="detail" title="Nahaufnahme der Gabeln des gewählten Moduls">Klappe</button>
       <button id="followBtn" title="Kamera folgt dem gewählten Gegenstand">Folgen</button>
     </div>
     <div id="offline">Keine Verbindung zur Simulation</div>
@@ -219,7 +220,12 @@ if (S.configs && S.configs.length) {
   sel.onchange = () => { const u = new URL(location.href); u.searchParams.set('config', sel.value); location.href = u.href; };
 }
 const N = S.modules.length;
-const P = 0.62, BIN_W = 0.5, BIN_H = 0.7, BIN_D = 0.46;
+const P = 0.52, BIN_W = 0.5, BIN_H = 0.7, BIN_D = 0.46;   // modules stand side by side
+// Sorting floor (photo of the prototype): two comb forks per module, hinged on a
+// tube at the left and right edge, each on its own servo. The tines interleave,
+// so the forks can swing past each other.
+const HINGE_X = BIN_W / 2 - 0.045, TINE_L = 2 * HINGE_X - 0.03, TINES = 16;
+const FLIP = 2.6;            // pass: the fork flips ~150 deg over its hinge into the neighbour
 const H_Y0 = 0.76, H_Y1 = 1.18, FLAP_Y = 0.86;
 const FR = {PET:0x2f80ed, ALU:0xaab4be, REST:0x5c5f66};
 const FR_CSS = {PET:'#2f80ed', ALU:'#8a96a3', REST:'#5c5f66', UNBEKANNT:'#f08c00'};
@@ -364,11 +370,29 @@ for (const m of S.modules) {
   const tD = tC.clone(); tD.position.x *= -1; g.add(tD);
   const pick = new THREE.Mesh(new THREE.BoxGeometry(ow, 0.05, od), new THREE.MeshBasicMaterial({color: 0xe8590c, transparent: true, opacity: 0, depthWrite: false}));
   pick.position.y = H_Y1 + 0.02; pick.userData.module = m.id; g.add(pick); openings.push(pick);
-  // flap on servo pivot
-  const pivot = new THREE.Group(); pivot.position.y = FLAP_Y; g.add(pivot);
-  const flap = box(0.4, 0.014, 0.36, std(0xf08c00, {roughness: .4})); pivot.add(flap);
-  const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.44), frameMat); axle.rotation.x = Math.PI / 2; g.add(axle); axle.position.y = FLAP_Y;
-  const servo = box(0.05, 0.04, 0.03, std(0x1c1c1c)); servo.position.set(0, FLAP_Y, -BIN_D / 2 + 0.03); g.add(servo);
+  // sorting floor: base plate with opening + two interleaving comb forks
+  const plateMat = std(0xf1f3f5, {roughness: .7}), forkMat = std(0xfafafa, {roughness: .45});
+  const oy = FLAP_Y - 0.03, hole = 2 * HINGE_X + 0.04, holeD = BIN_D - 0.07;
+  for (const sz of [-1, 1]) { const b = box(BIN_W - 0.02, 0.01, (BIN_D - holeD) / 2, plateMat); b.position.set(0, oy, sz * (holeD / 2 + (BIN_D - holeD) / 4)); g.add(b); }
+  for (const sx of [-1, 1]) { const b = box((BIN_W - hole) / 2, 0.01, holeD, plateMat); b.position.set(sx * (hole / 2 + (BIN_W - hole) / 4), oy, 0); g.add(b); }
+  const forks = {};
+  for (const side of ['L', 'R']) {
+    const sx = side === 'L' ? -1 : 1, pivot = new THREE.Group();
+    pivot.position.set(sx * HINGE_X, FLAP_Y, 0); g.add(pivot);
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, holeD - 0.01, 20), forkMat);
+    tube.rotation.x = Math.PI / 2; tube.castShadow = true; pivot.add(tube);
+    for (let k = side === 'L' ? 0 : 1; k < TINES; k += 2) {
+      const tine = box(TINE_L, 0.008, 0.011, forkMat);
+      tine.position.set(-sx * (TINE_L / 2 + 0.012), 0.008, -holeD / 2 + 0.02 + k * (holeD - 0.04) / (TINES - 1));
+      pivot.add(tine);
+    }
+    // servo at the hinge end, the two at diagonally opposite corners
+    const sz = side === 'L' ? -1 : 1, servo = new THREE.Group();
+    servo.position.set(sx * HINGE_X, FLAP_Y - 0.005, sz * (holeD / 2 + 0.035)); g.add(servo);
+    servo.add(box(0.045, 0.042, 0.055, std(0x161616)));
+    const label = box(0.046, 0.026, 0.035, std(0xd6336c, {roughness: .3})); label.position.y = 0.01; servo.add(label);
+    forks[side] = pivot;
+  }
   // ESP32-CAM under the lid + flash cone while capturing
   const cam = box(0.04, 0.012, 0.03, std(0x111111)); cam.position.set(0, H_Y1 - 0.02, -0.12); g.add(cam);
   const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.01), std(0x333366, {metalness: .8})); lens.position.set(0, H_Y1 - 0.03, -0.12); g.add(lens);
@@ -386,7 +410,7 @@ for (const m of S.modules) {
   const lab = new CSS2DObject(el); lab.position.set(0, H_Y1 + 0.18, 0); g.add(lab);
   const sel = new THREE.Mesh(new THREE.RingGeometry(0.17, 0.19, 40), new THREE.MeshBasicMaterial({color: 0xe8590c, side: THREE.DoubleSide}));
   sel.rotation.x = -Math.PI / 2; sel.position.y = H_Y1 + 0.025; g.add(sel);
-  M3[m.id] = {g, pivot, led, ledMat, flash, beam, hand, el, st: el.querySelector('.st'), sel, x};
+  M3[m.id] = {g, forks, led, ledMat, flash, beam, hand, el, st: el.querySelector('.st'), sel, x};
 }
 // Jetson + cables
 const jet = new THREE.Group(); jet.position.set(0, 0.95, -0.85); scene.add(jet);
@@ -430,15 +454,29 @@ function itemMesh(it){
 
 // ------------------------------------------------------------------ pose computation
 const tmp = new THREE.Object3D(); scene.add(tmp);
-function flapRot(mid, t, q){
-  const {v, dir} = flapAt(mid, t), e = new THREE.Euler();
-  if (dir === 'LINKS') e.z = v * 0.65; else if (dir === 'RECHTS') e.z = -v * 0.65; else e.x = v * 1.1;
-  return q.setFromEuler(e);
+// fork angles (rotation about the hinge tube): DIREKT = both down,
+// RECHTS/LINKS = that side's fork flips over its hinge into the neighbour
+function forkAngles(mid, t){
+  const {v, dir} = flapAt(mid, t);
+  if (dir === 'RECHTS') return {L: 0, R: -v * FLIP, v, dir};
+  if (dir === 'LINKS') return {L: v * FLIP, R: 0, v, dir};
+  return {L: -v * Math.PI / 2, R: v * Math.PI / 2, v, dir};
 }
+// where an item lies on the floor: it rides the fork that moves and slides
+// towards its hinge; on DIREKT it sinks as both forks open
 function flapPoint(mid, t, out){
-  const q = flapRot(mid, t, new THREE.Quaternion());
-  out.set(0, 0.045, 0).applyQuaternion(q);
-  return out.add(new THREE.Vector3(xOf(modById[mid].position), FLAP_Y, 0));
+  const a = forkAngles(mid, t), x0 = xOf(modById[mid].position), h = 0.05;
+  if (a.dir === 'RECHTS' || a.dir === 'LINKS') {
+    const sx = a.dir === 'RECHTS' ? 1 : -1, ang = sx > 0 ? a.R : a.L, d = HINGE_X * (1 - 0.75 * a.v);
+    // point at distance d from the hinge along the fork, h above it, rotated about the hinge
+    const lx = -sx * d, c = Math.cos(ang), s_ = Math.sin(ang);
+    return out.set(x0 + sx * HINGE_X + lx * c - h * s_, FLAP_Y + lx * s_ + h * c, 0);
+  }
+  return out.set(x0, FLAP_Y + h - a.v * 0.08, 0);
+}
+function flapRot(mid, t, q){
+  const a = forkAngles(mid, t);
+  return q.setFromEuler(new THREE.Euler(0, 0, a.dir === 'RECHTS' ? a.R * 0.5 : a.dir === 'LINKS' ? a.L * 0.5 : 0));
 }
 function pileSpot(bin, k, id){
   const m = modByFr[bin], j = (id * 9301 + 49297) % 233280 / 233280;
@@ -485,7 +523,7 @@ scene.add(selHalo);
 function update(t, wall){
   for (const m of S.modules) {
     const o = M3[m.id], dm = D.mods[m.id];
-    flapRot(m.id, t, o.pivot.quaternion);
+    const fa = forkAngles(m.id, t); o.forks.L.rotation.z = fa.L; o.forks.R.rotation.z = fa.R;
     const state = stepAt(dm.states, t, 'INIT'), led = stepAt(dm.leds, t, 'AUS');
     let on = led !== 'AUS'; if (led === 'FEHLWURF') on = Math.floor(wall / 180) % 2 === 0;
     o.ledMat.color.setHex(on ? LED[led] : 0x222222); o.ledMat.emissive.setHex(on ? LED[led] : 0);
@@ -702,7 +740,13 @@ renderer.domElement.addEventListener('pointerup', e => {
 renderer.domElement.addEventListener('dblclick', e => { const o = pickAt(e); if (o && o.userData.module) { selectModule(o.userData.module); doThrow(); } });
 const span = Math.max(1, N * P);
 const VIEWS = {iso: [1.1 * span, 1.9, 1.7 * span], front: [0, 1.0, 2.2 * span + 0.6], top: [0, 2.6 * span + 0.8, 0.01], side: [2.4 * span + 0.6, 1.1, 0]};
-function setView(k){ camera.position.set(...VIEWS[k]); controls.target.set(0, 0.65, -0.15); controls.update(); }
+function setView(k){
+  if (k === 'detail') {  // close-up of the sorting floor, slightly from above and the front
+    const x = xOf(modById[selectedModule].position);
+    camera.position.set(x + 0.5, FLAP_Y + 0.75, 1.15); controls.target.set(x + 0.15, FLAP_Y - 0.05, 0);
+  } else { camera.position.set(...VIEWS[k]); controls.target.set(0, 0.65, -0.15); }
+  controls.update();
+}
 document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => setView(b.dataset.view));
 setView('iso');
 
